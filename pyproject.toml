@@ -10,7 +10,36 @@ readme = "README.md"
 python = "^3.13"
 sqlalchemy = "^2.0.36"
 
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+skip-string-normalization = true
+target-version = [ "py312",]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ['E203', 'E231', 'W503', 'B023', 'E501', 'E266']
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+]
