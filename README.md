@@ -23,3 +23,7 @@ The goal of this system is to provide a robust personal finance tracking and rec
 ## 2. Schema
 
 ![](docs/img/schema-diagram.png)
+
+## 3. System design
+
+- The application stores data in a SQLite Database stored in this repo.
