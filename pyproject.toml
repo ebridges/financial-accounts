@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "accounts"
+version = "0.1.0"
+description = "A personal finance accounting system."
+authors = ["Edward Bridges <github@eqbridges.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+sqlalchemy = "^2.0.36"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
