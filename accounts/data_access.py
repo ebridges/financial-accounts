@@ -1,14 +1,20 @@
 # data_access.py
 import uuid
 from typing import List, Optional
-from sqlalchemy.orm import Session
 
-from models import Book, Account, Transactions, Split
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.orm import sessionmaker
+
+from accounts.models import Base, Book, Account, Transactions, Split
 
 # If using a Python Enum for account types:
 # from account_enums import AccountTypeEnum
 
-def check_for_circular_path(session: Session, account_id: str, parent_account_id: Optional[str]) -> bool:
+
+def check_for_circular_path(
+    session: Session, account_id: str, parent_account_id: Optional[str]
+) -> bool:
     """
     Returns True if a cycle is found, False otherwise.
     We'll do a simple upward traversal from parent_account_id until we either
@@ -29,8 +35,23 @@ def check_for_circular_path(session: Session, account_id: str, parent_account_id
 
 
 class DAL:
-    def __init__(self, session: Session):
-        self.session = session
+    def __init__(self, db_url):
+        self.engine = create_engine(db_url, echo=False)
+        self.SessionLocal = sessionmaker(bind=self.engine)
+
+    def __enter__(self):
+        self.session = self.SessionLocal()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.session.close()
+
+    # --------------------------------------------------------------------------
+    # Management
+    # --------------------------------------------------------------------------
+    def reset_database(self):
+        Base.metadata.drop_all(self.engine)
+        Base.metadata.create_all(self.engine)
 
     # --------------------------------------------------------------------------
     # Book
@@ -44,6 +65,9 @@ class DAL:
 
     def get_book(self, book_id: str) -> Optional[Book]:
         return self.session.query(Book).filter_by(id=book_id).one_or_none()
+
+    def get_book_by_name(self, name: str) -> Optional[Book]:
+        return self.session.query(Book).filter_by(name=name).one_or_none()
 
     def list_books(self) -> List[Book]:
         return self.session.query(Book).all()
@@ -76,10 +100,10 @@ class DAL:
         parent_account_id: Optional[str] = None,
         description: Optional[str] = None,
         hidden: bool = False,
-        placeholder: bool = False
+        placeholder: bool = False,
     ) -> Account:
         """
-        Creates a new Account. The acct_type param must be one of 
+        Creates a new Account. The acct_type param must be one of
         ('ASSET','LIABILITY','INCOME','EXPENSE','EQUITY').
         """
         new_id = uuid.uuid4()
@@ -98,7 +122,7 @@ class DAL:
             parent_account_id=parent_account_id,
             description=description,
             hidden=hidden,
-            placeholder=placeholder
+            placeholder=placeholder,
         )
         self.session.add(account)
         self.session.commit()
@@ -106,6 +130,9 @@ class DAL:
 
     def get_account(self, account_id: str) -> Optional[Account]:
         return self.session.query(Account).filter_by(id=account_id).one_or_none()
+
+    def get_account_by_name_for_book(self, book_id: str, acct_name: str) -> Optional[Account]:
+        return self.session.query(Account).filter_by(book_id=book_id, name=acct_name).one_or_none()
 
     def update_account(self, account_id: str, **kwargs) -> Optional[Account]:
         """
@@ -122,7 +149,16 @@ class DAL:
                 raise ValueError("Circular parent reference detected.")
 
         # updatable fields
-        for field in ["book_id", "acct_type", "code", "name", "description", "hidden", "placeholder", "parent_account_id"]:
+        for field in [
+            "book_id",
+            "acct_type",
+            "code",
+            "name",
+            "description",
+            "hidden",
+            "placeholder",
+            "parent_account_id",
+        ]:
             if field in kwargs:
                 setattr(account, field, kwargs[field])
 
@@ -143,13 +179,15 @@ class DAL:
     # --------------------------------------------------------------------------
     # Transactions
     # --------------------------------------------------------------------------
-    def create_transaction(self, book_id: str, transaction_date, transaction_description: str) -> Transactions:
+    def create_transaction(
+        self, book_id: str, transaction_date, transaction_description: str
+    ) -> Transactions:
         new_id = uuid.uuid4()
         txn = Transactions(
             id=new_id,
             book_id=book_id,
             transaction_date=transaction_date,
-            transaction_description=transaction_description
+            transaction_description=transaction_description,
         )
         self.session.add(txn)
         self.session.commit()
@@ -184,7 +222,14 @@ class DAL:
     # --------------------------------------------------------------------------
     # Split
     # --------------------------------------------------------------------------
-    def create_split(self, transaction_id: str, account_id: str, amount, memo: str = None, reconcile_state: str = 'n') -> Split:
+    def create_split(
+        self,
+        transaction_id: str,
+        account_id: str,
+        amount,
+        memo: str = None,
+        reconcile_state: str = 'n',
+    ) -> Split:
         new_id = uuid.uuid4()
         spl = Split(
             id=new_id,
@@ -192,7 +237,7 @@ class DAL:
             account_id=account_id,
             amount=amount,
             memo=memo,
-            reconcile_state=reconcile_state
+            reconcile_state=reconcile_state,
         )
         self.session.add(spl)
         self.session.commit()
@@ -206,7 +251,14 @@ class DAL:
         if not spl:
             return None
 
-        for field in ["transaction_id", "account_id", "amount", "memo", "reconcile_date", "reconcile_state"]:
+        for field in [
+            "transaction_id",
+            "account_id",
+            "amount",
+            "memo",
+            "reconcile_date",
+            "reconcile_state",
+        ]:
             if field in kwargs:
                 setattr(spl, field, kwargs[field])
 

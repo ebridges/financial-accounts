@@ -1,15 +1,57 @@
 # models.py (excerpt)
 import uuid
+from sqlalchemy.types import TypeDecorator
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from enum import Enum
 
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, ForeignKey,
-    DECIMAL, Date, Text, CheckConstraint, text
+    Column,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    DECIMAL,
+    Date,
+    Text,
+    CheckConstraint,
+    UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy.dialects.sqlite import BLOB as UUID  # or TEXT for storing UUIDs in SQLite
+
 
 Base = declarative_base()
+
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type.
+    When used with PostgreSQL, uses native UUID.
+    Otherwise, stores as String(36).
+    """
+
+    impl = String(36)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(PG_UUID())
+        else:
+            return dialect.type_descriptor(String(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if not isinstance(value, uuid.UUID):
+            value = uuid.UUID(value)
+        if dialect.name == 'postgresql':
+            return value
+        else:
+            return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return uuid.UUID(value)
 
 
 class AccountTypeEnum(str, Enum):
@@ -18,11 +60,12 @@ class AccountTypeEnum(str, Enum):
     INCOME = "INCOME"
     EXPENSE = "EXPENSE"
     EQUITY = "EQUITY"
+    ROOT = "ROOT"
 
 
 class Book(Base):
     __tablename__ = 'book'
-    id = Column(UUID, primary_key=True)
+    id = Column(GUID(), primary_key=True)
     name = Column(String(100), nullable=False, unique=True)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
@@ -33,9 +76,13 @@ class Book(Base):
 
 class Account(Base):
     __tablename__ = 'account'
-    id = Column(UUID, primary_key=True)
-    book_id = Column(UUID, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False)
-    parent_account_id = Column(UUID, ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT"))
+    id = Column(GUID(), primary_key=True)
+    book_id = Column(
+        GUID(), ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
+    parent_account_id = Column(
+        GUID(), ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT")
+    )
     code = Column(String(50), nullable=False)
     name = Column(String(100), nullable=False)
     description = Column(Text)
@@ -46,8 +93,8 @@ class Account(Base):
     updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
     __table_args__ = (
-        CheckConstraint("acct_type IN ('ASSET','LIABILITY','INCOME','EXPENSE','EQUITY')"),
-        UniqueConstraint('book_id','code')
+        CheckConstraint("acct_type IN ('ASSET','LIABILITY','INCOME','EXPENSE','EQUITY','ROOT')"),
+        UniqueConstraint('book_id', 'code'),
     )
 
     book = relationship("Book", back_populates="accounts")
@@ -57,8 +104,10 @@ class Account(Base):
 
 class Transactions(Base):
     __tablename__ = 'transactions'
-    id = Column(UUID, primary_key=True)
-    book_id = Column(UUID, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False)
+    id = Column(GUID(), primary_key=True)
+    book_id = Column(
+        GUID(), ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
     transaction_date = Column(Date, nullable=False)
     entry_date = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     transaction_description = Column(Text, nullable=False)
@@ -71,13 +120,21 @@ class Transactions(Base):
 
 class Split(Base):
     __tablename__ = 'split'
-    id = Column(UUID, primary_key=True)
-    transaction_id = Column(UUID, ForeignKey('transactions.id', ondelete="CASCADE", onupdate="RESTRICT"), nullable=False)
-    account_id = Column(UUID, ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False)
-    amount = Column(DECIMAL(20,4), nullable=False)  # negative for credits, positive for debits
+    id = Column(GUID(), primary_key=True)
+    transaction_id = Column(
+        GUID(),
+        ForeignKey('transactions.id', ondelete="CASCADE", onupdate="RESTRICT"),
+        nullable=False,
+    )
+    account_id = Column(
+        GUID(), ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
+    amount = Column(DECIMAL(20, 4), nullable=False)  # negative for credits, positive for debits
     memo = Column(Text)
     reconcile_date = Column(DateTime)
-    reconcile_state = Column(String(1), server_default='n', nullable=False)  # n=not, c=cleared, r=reconciled
+    reconcile_state = Column(
+        String(1), server_default='n', nullable=False
+    )  # n=not, c=cleared, r=reconciled
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
