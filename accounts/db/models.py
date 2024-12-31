@@ -18,7 +18,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import declarative_base, relationship
-
+from accounts.db.updated_mixin import UpdatedAtMixin
 
 Base = declarative_base()
 
@@ -63,18 +63,17 @@ class AccountTypeEnum(str, Enum):
     ROOT = "ROOT"
 
 
-class Book(Base):
+class Book(Base, UpdatedAtMixin):
     __tablename__ = 'book'
     id = Column(GUID(), primary_key=True)
     name = Column(String(100), nullable=False, unique=True)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
-    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
     accounts = relationship("Account", back_populates="book", cascade="all, delete-orphan")
     transactions = relationship("Transactions", back_populates="book", cascade="all, delete-orphan")
 
 
-class Account(Base):
+class Account(Base, UpdatedAtMixin):
     __tablename__ = 'account'
     id = Column(GUID(), primary_key=True)
     book_id = Column(
@@ -90,7 +89,6 @@ class Account(Base):
     placeholder = Column(Boolean, nullable=False, default=False)
     acct_type = Column(String(50), nullable=False)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
-    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
     __table_args__ = (
         CheckConstraint("acct_type IN ('ASSET','LIABILITY','INCOME','EXPENSE','EQUITY','ROOT')"),
@@ -102,7 +100,7 @@ class Account(Base):
     splits = relationship("Split", back_populates="account", cascade="all, delete-orphan")
 
 
-class Transactions(Base):
+class Transactions(Base, UpdatedAtMixin):
     __tablename__ = 'transactions'
     id = Column(GUID(), primary_key=True)
     book_id = Column(
@@ -112,13 +110,12 @@ class Transactions(Base):
     entry_date = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     transaction_description = Column(Text, nullable=False)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
-    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
     book = relationship("Book", back_populates="transactions")
     splits = relationship("Split", back_populates="transaction", cascade="all, delete-orphan")
 
 
-class Split(Base):
+class Split(Base, UpdatedAtMixin):
     __tablename__ = 'split'
     id = Column(GUID(), primary_key=True)
     transaction_id = Column(
@@ -136,7 +133,6 @@ class Split(Base):
         String(1), server_default='n', nullable=False
     )  # n=not, c=cleared, r=reconciled
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
-    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
     transaction = relationship("Transactions", back_populates="splits")
     account = relationship("Account", back_populates="splits")
