@@ -1,24 +1,9 @@
 from decimal import Decimal
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from accounts.db.data_access import DAL
+from accounts.business.base_service import BaseService
 
 
-class TransactionService:
-    def __init__(self, db_url):
-        self.engine = create_engine(db_url, echo=False)
-        self.SessionLocal = sessionmaker(bind=self.engine)
-
-    def __enter__(self):
-        self.session = self.SessionLocal()
-        self.data_access = DAL(session=self.session)
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.data_access.close()
-
+class TransactionService(BaseService):
     def enter_transaction(self, book_name, txn_date, txn_desc, debit_acct, credit_acct, amount):
         book = self.data_access.get_book_by_name(book_name)
         if not book:
