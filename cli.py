@@ -250,8 +250,8 @@ def do_init_db(db_url, confirm):
 
 
 def ensure_subdirs_for_sqlite(db_url: str):
-    if db_url.startswith(prefix="sqlite:///"):
-        local_path = db_url[len(obj="sqlite:///") :]
+    if db_url.startswith("sqlite:///"):
+        local_path = db_url[len("sqlite:///") :]
         directory = os.path.dirname(local_path)
         if directory:
             os.makedirs(directory, exist_ok=True)
