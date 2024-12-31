@@ -2,14 +2,9 @@
 import uuid
 from typing import List, Optional
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from sqlalchemy.orm import sessionmaker
 
-from accounts.models import Base, Book, Account, Transactions, Split
-
-# If using a Python Enum for account types:
-# from account_enums import AccountTypeEnum
+from accounts.db.models import Book, Account, Transactions, Split
 
 
 def check_for_circular_path(
@@ -35,23 +30,11 @@ def check_for_circular_path(
 
 
 class DAL:
-    def __init__(self, db_url):
-        self.engine = create_engine(db_url, echo=False)
-        self.SessionLocal = sessionmaker(bind=self.engine)
+    def __init__(self, session):
+        self.session = session
 
-    def __enter__(self):
-        self.session = self.SessionLocal()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
+    def close(self):
         self.session.close()
-
-    # --------------------------------------------------------------------------
-    # Management
-    # --------------------------------------------------------------------------
-    def reset_database(self):
-        Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
 
     # --------------------------------------------------------------------------
     # Book
