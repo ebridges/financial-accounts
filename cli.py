@@ -2,27 +2,38 @@
 import argparse
 import sys
 import os
-from decimal import Decimal
 
-from accounts.data_access import DAL
+from accounts.business.transaction_service import TransactionService
+from accounts.business.management_service import ManagementService
+from accounts.business.account_service import AccountService
+from accounts.business.book_service import BookService
 
 DEFAULT_DB_URL = "sqlite:///db/accounting-system.db"
 DEFAULT_BOOK = "personal"
+DEFAULT_ROOT_ACCOUNT = "ROOT"
 
-f"""
+'''
 CLI program for the `accounts` application.
 
-Commands (the only positional arg):
-  init-book, add-account, list-accounts, book-transaction
+usage: cli.py [-h] [--db-url DB_URL] {init-db,init-book,add-account,list-accounts,book-transaction} ...
 
-All other arguments are short/long flags, e.g.:
-  --book-name/-b, --acct-type/-t, --acct-code/-c, --acct-name/-n,
-  --parent-id/-p, --description/-d, --txn-date/-D, --txn-desc/-T,
-  --debit-acct/-x, --credit-acct/-y, --amount/-a, etc.
+Accounts CLI
+
+positional arguments:
+  {init-db,init-book,add-account,list-accounts,book-transaction}
+    init-db             Initialize the DB schema (drop/create tables)
+    init-book           Create a new Book if it doesn't exist
+    add-account         Add an account to a given book
+    list-accounts       List all accounts for a given book
+    book-transaction    Create a transaction w/ two splits (debit & credit)
+
+options:
+  -h, --help            show this help message and exit
+  --db-url, -u DB_URL   Database URL (default: sqlite:///db/accounting-system.db)
 
 Examples:
 
-1) Init a book named 'business' (defaults to '{DEFAULT_BOOK}' if not given):
+1) Init a book named 'business' (uses default book name if not given):
     python cli.py init-book -b business
 
 2) Add an account:
@@ -37,32 +48,57 @@ Examples:
 
 Note: If you do not specify some flags for a particular command, you'll see
 an error or a basic usage note. This is a minimal illustrative example.
-
-By default, --book-name = '{DEFAULT_BOOK}'.
-"""
-
-# --------------------------------------------------------------------------
-# Adjust these imports for your own project structure.
-# For example, if you store DB_URL in config, or if you store your models
-# and DAL in the `accounts` package, do something like:
-#
-# from accounts.models import Base, Book, Account
-# from accounts.data_access import DAL
-#
-# We'll show them inline here for clarity.
-# --------------------------------------------------------------------------
-
-
-def ensure_subdirs_for_sqlite(db_url: str):
-    if db_url.startswith("sqlite:///"):
-        local_path = db_url[len("sqlite:///") :]
-        directory = os.path.dirname(local_path)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
+'''
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Accounts CLI (subparser version)")
+    args = parse_arguments()
+
+    # ----------------------------------------------------------------------
+    # Make sure subdirectories exist for local SQLite path, if any
+    # ----------------------------------------------------------------------
+    ensure_subdirs_for_sqlite(args.db_url)
+
+    # ----------------------------------------------------------------------
+    # Handle each individual command in its own transaction
+    # ----------------------------------------------------------------------
+    if args.command == 'init-db':
+        do_init_db(args.db_url, args.confirm)
+
+    elif args.command == "init-book":
+        do_init_book(args.db_url, args.book_name)
+
+    elif args.command == "add-account":
+        do_add_account(
+            args.db_url,
+            args.book_name,
+            args.parent_name,
+            args.acct_name,
+            args.acct_code,
+            args.acct_type,
+            args.description,
+            args.hidden,
+            args.placeholder,
+        )
+
+    elif args.command == "list-accounts":
+        do_list_accounts(args.db_url, args.book_name)
+
+    elif args.command == "book-transaction":
+        do_book_transaction(
+            args.db_url,
+            args.book_name,
+            args.txn_date,
+            args.txn_desc,
+            args.debit_acct,
+            args.credit_acct,
+        )
+
+    return 0
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Accounts CLI")
 
     parser.add_argument(
         "--db-url", "-u", default=DEFAULT_DB_URL, help=f"Database URL (default: {DEFAULT_DB_URL})"
@@ -75,28 +111,37 @@ def main():
         "init-db", help="Initialize the DB schema (drop/create tables)"
     )
     sp_init_db.add_argument(
-        "--confirm", help="This flag must be passed to avoid accidental dropping of database."
+        "--confirm",
+        action="store_true",
+        default=False,
+        help="This flag must be passed to avoid accidental dropping of database.",
     )
 
     # init-book
     sp_init_book = subparsers.add_parser("init-book", help="Create a new Book if it doesn't exist")
     sp_init_book.add_argument(
-        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default '{DEFAULT_BOOK}')"
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
     )
 
     # add-account
     sp_add_account = subparsers.add_parser("add-account", help="Add an account to a given book")
     sp_add_account.add_argument(
-        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default '{DEFAULT_BOOK}')"
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
     )
     sp_add_account.add_argument(
-        "--acct-type", "-t", required=True, help="Acct type (ASSET/LIABILITY/INCOME/EXPENSE/EQUITY)"
+        "--acct-type",
+        "-t",
+        required=True,
+        help="Acct type (ASSET/LIABILITY/INCOME/EXPENSE/EQUITY/ROOT)",
     )
     sp_add_account.add_argument("--acct-code", "-c", required=True, help="Account code")
     sp_add_account.add_argument("--acct-name", "-n", required=True, help="Account name")
     sp_add_account.add_argument("--description", "-d", default="", help="Description (optional)")
     sp_add_account.add_argument(
-        "--parent-name", "-p", default=None, help="Parent account name (optional)"
+        "--parent-name",
+        "-p",
+        default=DEFAULT_ROOT_ACCOUNT,
+        help=f"Parent account name (optional, default: '{DEFAULT_ROOT_ACCOUNT}')",
     )
     sp_add_account.add_argument(
         "--hidden", default=False, action="store_true", help="Mark account as hidden (optional)"
@@ -113,7 +158,7 @@ def main():
         "list-accounts", help="List all accounts for a given book"
     )
     sp_list_accounts.add_argument(
-        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default '{DEFAULT_BOOK}')"
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
     )
 
     # book-transaction
@@ -121,7 +166,7 @@ def main():
         "book-transaction", help="Create a transaction w/ two splits (debit & credit)"
     )
     sp_book_txn.add_argument(
-        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default '{DEFAULT_BOOK}')"
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
     )
     sp_book_txn.add_argument(
         "--txn-date", "-D", required=True, help="Transaction date (YYYY-MM-DD)"
@@ -131,120 +176,85 @@ def main():
     sp_book_txn.add_argument("--credit-acct", "-y", required=True, help="Credit account name")
     sp_book_txn.add_argument("--amount", "-a", required=True, help="Amount")
 
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # ----------------------------------------------------------------------
-    # Make sure subdirectories exist for local SQLite path, if any
-    # (You likely have a function like ensure_subdirs_for_sqlite(db_url).)
-    # For brevity, let's inline a minimal approach:
-    # ----------------------------------------------------------------------
-    ensure_subdirs_for_sqlite(args.db_url)
 
-    # ----------------------------------------------------------------------
-    # Connect to DB
-    # ----------------------------------------------------------------------
+def do_init_book(db_url, book_name):
+    with BookService(db_url=db_url) as book_service:
+        new_book = book_service.create_new_book(book_name=args.book_name)
+        print(f"Created book '{book_name}' with id={new_book.id}")
 
-    with DAL(db_url=args.db_url) as dal:
 
-        # ----------------------------------------------------------------------
-        # Now parse the command and run the logic
-        # ----------------------------------------------------------------------
-        if args.command == 'init-db':
-            # DROP and CREATE all tables (optional drop step if you truly want a fresh start)
-            dal.reset_database()
-            print("Database initialized (accounts.db).")
+def do_add_account(
+    db_url,
+    book_name,
+    parent_name,
+    acct_name,
+    acct_code,
+    acct_type,
+    description,
+    hidden,
+    placeholder,
+):
+    with AccountService(db_url=db_url) as acct_service:
+        new_account = acct_service.create_account(
+            book_name,
+            parent_name,
+            acct_name,
+            acct_code,
+            acct_type,
+            description,
+            hidden,
+            placeholder,
+        )
+        print(f"Created account '{acct_name}' with id={new_account.id} in book='{book_name}'.")
 
-        elif args.command == "init-book":
-            # Create a new Book if it doesn't exist
-            existing = dal.get_book_by_name(args.book_name)
-            if existing:
-                print(f"Book '{args.book_name}' already exists with id={existing.id}")
-            else:
-                new_book = dal.create_book(args.book_name)
-                print(f"Created book '{args.book_name}' with id={new_book.id}")
 
-        elif args.command == "add-account":
-            # Look up the book
-            book = dal.get_book_by_name(args.book_name)
-            if not book:
-                print(f"No book found named '{args.book_name}'.")
-                return 1
+def do_list_accounts(db_url, book_name):
+    with AccountService(db_url=db_url) as acct_service:
+        accounts = acct_service.list_accounts_in_book(book_name)
+        if not accounts:
+            print(f"No accounts in book '{book_name}'.")
+        else:
+            print(f"Accounts in book '{book_name}':")
+            for a in accounts:
+                print(
+                    f" - [ID={a.id}] Name={a.name}, Code={a.code}, Type={a.acct_type}, "
+                    f"Hidden={a.hidden}, Placeholder={a.placeholder}"
+                )
 
-            # If parent-name is provided, do a lookup. (In this example, we do not store parent-child rel by name.)
-            parent_id = None
-            if args.parent_name:
-                parent_acct = dal.get_account_by_name_for_book(book.id, args.parent_name)
-                if not parent_acct:
-                    print(f"Parent account named '{args.parent_name}' not found.")
-                    return 1
-                parent_id = parent_acct.id
 
-            new_acct = dal.create_account(
-                book_id=book.id,
-                name=args.acct_name,
-                code=args.acct_code,
-                acct_type=args.acct_type,
-                description=args.description,
-                hidden=args.hidden,
-                placeholder=args.placeholder,
-                parent_account_id=parent_id,
-            )
-            print(
-                f"Created account '{args.acct_name}' with id={new_acct.id} in book='{book.name}'."
-            )
+def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credit_acct, amount):
+    with TransactionService(db_url=db_url) as txn_service:
+        txn_id = txn_service.enter_transaction(
+            book_name=book_name,
+            txn_date=txn_date,
+            txn_desc=txn_desc,
+            debit_acct=debit_acct,
+            credit_acct=credit_acct,
+        )
+        print(
+            f"Created transaction {txn_id}, debiting '{debit_acct}' / "
+            f"crediting '{credit_acct}' for ${amount}"
+        )
 
-        elif args.command == "list-accounts":
-            book = dal.get_book_by_name(args.book_name)
-            if not book:
-                print(f"No book found named '{args.book_name}'.")
-                return 1
-            accounts = dal.list_accounts_for_book(book.id)
-            if not accounts:
-                print(f"No accounts in book '{book.name}'.")
-            else:
-                print(f"Accounts in book '{book.name}':")
-                for a in accounts:
-                    print(
-                        f" - [ID={a.id}] Name={a.name}, Code={a.code}, Type={a.acct_type}, Hidden={a.hidden}, Placeholder={a.placeholder}"
-                    )
 
-        elif args.command == "book-transaction":
-            book = dal.get_book_by_name(args.book_name)
-            if not book:
-                print(f"No book found named '{args.book_name}'.")
-                return 1
+def do_init_db(db_url, confirm):
+    # DROP and CREATE all tables (optional drop step if you truly want a fresh start)
+    if confirm:
+        mgmt_service = ManagementService(db_url)
+        mgmt_service.reset_database()
+        print(f"Database initialized at ({db_url}).")
+    else:
+        print('Resetting the database requires the "--confirm" flag.')
 
-            # parse amount
-            try:
-                amt = Decimal(value=args.amount)
-            except ValueError:
-                print("ERROR: --amount must be numeric.")
-                return 1
 
-            debit_acct = dal.get_account_by_name_for_book(book.id, args.debit_acct)
-            if not debit_acct:
-                print(f"Debit account '{args.debit_acct}' not found in book '{args.book_name}'.")
-                return 1
-
-            credit_acct = dal.get_account_by_name_for_book(book.id, args.credit_acct)
-            if not credit_acct:
-                print(f"Credit account '{args.credit_acct}' not found in book '{args.book_name}'.")
-                return 1
-
-            txn = dal.create_transaction(
-                book_id=book.id,
-                transaction_date=args.txn_date,
-                transaction_description=args.txn_desc,
-            )
-            # debit is +, credit is -
-            dal.create_split(transaction_id=txn.id, account_id=debit_acct.id, amount=amt)
-            dal.create_split(transaction_id=txn.id, account_id=credit_acct.id, amount=-amt)
-
-            print(
-                f"Created transaction {txn.id}, debiting '{debit_acct.name}' / crediting '{credit_acct.name}' for ${amt}"
-            )
-
-    return 0
+def ensure_subdirs_for_sqlite(db_url: str):
+    if db_url.startswith(prefix="sqlite:///"):
+        local_path = db_url[len(obj="sqlite:///") :]
+        directory = os.path.dirname(local_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
 
 
 if __name__ == '__main__':
