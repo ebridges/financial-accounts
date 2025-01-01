@@ -3,3 +3,5 @@ db/*.db
 htmlcov/
 .pytest_cache
 .coverage
+.aider*
+.env
