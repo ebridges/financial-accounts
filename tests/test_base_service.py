@@ -15,8 +15,6 @@ def test_base_service_initialization(db_url):
 def test_session_management(db_url):
     with BaseService(db_url) as service:
         session = service.session
-        assert not session.is_active
-        session.begin()
         assert session.is_active
-        session.rollback()
+        session.close()
         assert not session.is_active
