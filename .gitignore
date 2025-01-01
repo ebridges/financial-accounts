@@ -1,2 +1,5 @@
 __pycache__/
 db/*.db
+htmlcov/
+.pytest_cache
+.coverage
