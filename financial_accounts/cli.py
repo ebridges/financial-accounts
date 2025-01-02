@@ -3,7 +3,7 @@ import argparse
 import sys
 import os
 
-from financial_accounts import VERSION
+from financial_accounts.version import __version__
 from financial_accounts.business.transaction_service import TransactionService
 from financial_accounts.business.management_service import ManagementService
 from financial_accounts.business.account_service import AccountService
@@ -111,7 +111,7 @@ def main():
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Accounts CLI")
 
-    parser.add_argument("--version", "-V", help='Show current version number of application.')
+    parser.add_argument("--version", action="version", version=__version__, help="Show version.")
 
     parser.add_argument(
         "--db-url", "-u", default=DEFAULT_DB_URL, help=f"Database URL (default: {DEFAULT_DB_URL})"

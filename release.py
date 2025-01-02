@@ -6,7 +6,7 @@ import logging
 from git import Repo, GitCommandError
 
 DEFAULT_PYPROJECT_TOML = "pyproject.toml"
-DEFAULT_VERSION_TXT = "version.txt"
+DEFAULT_VERSION_TXT = "version.py"
 
 
 # Configure logging
@@ -50,10 +50,11 @@ def update_version_in_pyproject(file_path, new_version):
 
 
 def update_version_in_versiontxt(file_path, new_version):
-    """Update the version in the version.txt file."""
+    """Update the version in the version file."""
     try:
         with open(file_path, "w") as file:
-            file.write(new_version)
+            version_str = f"__version__ = '{new_version}'"
+            file.write(version_str)
         logger.info(f"Updated version to {new_version} in {file_path}")
     except Exception as e:
         logger.exception(f"Failed to update version in {file_path}: {e}")
