@@ -1,8 +1,8 @@
 import pytest
 
-from accounts.db.models import Base
-from accounts.business.book_service import BookService
-from accounts.business.management_service import ManagementService
+from financial_accounts.db.models import Base
+from financial_accounts.business.book_service import BookService
+from financial_accounts.business.management_service import ManagementService
 
 
 @pytest.fixture

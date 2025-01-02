@@ -1,4 +1,4 @@
-from accounts.business.base_service import BaseService
+from financial_accounts.business.base_service import BaseService
 
 
 class AccountService(BaseService):

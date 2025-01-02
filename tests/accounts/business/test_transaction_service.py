@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
-from accounts.business.transaction_service import TransactionService
+from financial_accounts.business.transaction_service import TransactionService
+
 
 @pytest.fixture
 def transaction_service():
@@ -8,9 +9,13 @@ def transaction_service():
     service.data_access = MagicMock()
     return service
 
+
 def test_enter_transaction(transaction_service):
     transaction_service.data_access.get_book_by_name.return_value = MagicMock(id=1)
-    transaction_service.data_access.get_account_by_name_for_book.side_effect = [MagicMock(id=1), MagicMock(id=2)]
+    transaction_service.data_access.get_account_by_name_for_book.side_effect = [
+        MagicMock(id=1),
+        MagicMock(id=2),
+    ]
     transaction_service.data_access.create_transaction.return_value = MagicMock(id=1)
 
     txn_id = transaction_service.enter_transaction(
@@ -19,6 +24,6 @@ def test_enter_transaction(transaction_service):
         txn_desc="Test Transaction",
         debit_acct="Debit Account",
         credit_acct="Credit Account",
-        amount="100.00"
+        amount="100.00",
     )
     assert txn_id == 1

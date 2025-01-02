@@ -5,3 +5,4 @@ htmlcov/
 .coverage
 .aider*
 .env
+dist/

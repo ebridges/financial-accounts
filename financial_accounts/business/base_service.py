@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from accounts.db.data_access import DAL
+from financial_accounts.db.data_access import DAL
 
 
 class BaseService:

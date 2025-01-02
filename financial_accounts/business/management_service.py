@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 
-from accounts.db.models import Base
+from financial_accounts.db.models import Base
 
 
 class ManagementService:

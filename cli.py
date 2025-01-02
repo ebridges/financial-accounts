@@ -3,10 +3,10 @@ import argparse
 import sys
 import os
 
-from accounts.business.transaction_service import TransactionService
-from accounts.business.management_service import ManagementService
-from accounts.business.account_service import AccountService
-from accounts.business.book_service import BookService
+from financial_accounts.business.transaction_service import TransactionService
+from financial_accounts.business.management_service import ManagementService
+from financial_accounts.business.account_service import AccountService
+from financial_accounts.business.book_service import BookService
 
 DEFAULT_DB_URL = "sqlite:///db/accounting-system.db"
 DEFAULT_BOOK = "personal"

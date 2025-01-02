@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from accounts.db.models import Book, Account, Transactions, Split
+from financial_accounts.db.models import Book, Account, Transactions, Split
 
 
 def check_for_circular_path(
