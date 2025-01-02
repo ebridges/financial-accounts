@@ -7,7 +7,7 @@ license = "MIT"
 readme = "README.md"
 
 [tool.poetry.scripts]
-accounts-cli = 'cli:main'
+accounts-cli = 'financial_accounts.cli:main'
 
 [tool.poetry.dependencies]
 python = "^3.13"
