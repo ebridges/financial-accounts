@@ -3,6 +3,7 @@ import argparse
 import sys
 import os
 
+from financial_accounts import VERSION
 from financial_accounts.business.transaction_service import TransactionService
 from financial_accounts.business.management_service import ManagementService
 from financial_accounts.business.account_service import AccountService
@@ -59,6 +60,13 @@ def main():
     ensure_subdirs_for_sqlite(args.db_url)
 
     # ----------------------------------------------------------------------
+    # Handle global flags
+    # ----------------------------------------------------------------------
+    if args.version:
+        print(f'Version: {VERSION}')
+        return 0
+
+    # ----------------------------------------------------------------------
     # Handle each individual command in its own transaction
     # ----------------------------------------------------------------------
     if args.command == 'init-db':
@@ -102,6 +110,8 @@ def main():
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Accounts CLI")
+
+    parser.add_argument("--version", "-V", help='Show current version number of application.')
 
     parser.add_argument(
         "--db-url", "-u", default=DEFAULT_DB_URL, help=f"Database URL (default: {DEFAULT_DB_URL})"
