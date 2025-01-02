@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "accounts"
+name = "financial-accounts"
 version = "0.1.0"
 description = "A personal finance accounting system."
 authors = ["Edward Bridges <github@eqbridges.com>"]
