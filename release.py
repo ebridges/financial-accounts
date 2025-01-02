@@ -6,7 +6,7 @@ import logging
 from git import Repo, GitCommandError
 
 DEFAULT_PYPROJECT_TOML = "pyproject.toml"
-DEFAULT_VERSION_TXT = "financial_accounts/version.txt"
+DEFAULT_VERSION_TXT = "version.txt"
 
 
 # Configure logging
@@ -16,6 +16,17 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+
+def get_module_name(file_path):
+    try:
+        with open(file=file_path) as file:
+            data = tomlkit.load(file)
+            if "tool" in data and "poetry" in data["tool"]:
+                return data["tool"]["poetry"]["name"]
+    except Exception as e:
+        logger.exception(f"Failed to locate module name in {file_path}: {e}")
+        raise
 
 
 def update_version_in_pyproject(file_path, new_version):
@@ -131,7 +142,7 @@ def main():
     parser.add_argument(
         "--version_txt",
         default=DEFAULT_VERSION_TXT,
-        help=f"The location of the version.txt file. (default: {DEFAULT_VERSION_TXT})",
+        help=f"The name of the version.txt file. Assumed to be at root of module. (default: {DEFAULT_VERSION_TXT})",
     )
 
     parser.add_argument(
@@ -159,6 +170,9 @@ def main():
     pyproject_toml = args.pyproject_toml
     version_txt = args.version_txt
 
+    module_name = get_module_name(pyproject_toml)
+    version_txt_path = f'{module_name}/{version_txt}'
+
     try:
         # Detect Git repository
         repo = Repo(".")
@@ -168,12 +182,12 @@ def main():
             raise Exception("No Git repository found in the current directory.")
 
         if args.command == "release":
-            release_version(repo, pyproject_toml, version_txt, args.version)
+            release_version(repo, pyproject_toml, version_txt_path, args.version)
         elif args.command == "rollback":
             rollback_version(
                 repo=repo,
                 pyproject_path=pyproject_toml,
-                versiontxt_path=version_txt,
+                versiontxt_path=version_txt_path,
                 previous_version=args.previous_version,
                 current_version=args.current_version,
             )
