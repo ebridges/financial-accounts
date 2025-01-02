@@ -242,7 +242,7 @@ def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credi
 def do_init_db(db_url, confirm):
     # DROP and CREATE all tables (optional drop step if you truly want a fresh start)
     if confirm:
-        mgmt_service = ManagementService(db_url)
+        mgmt_service = ManagementService().init_with_url(db_url=db_url)
         mgmt_service.reset_database()
         print(f"Database initialized at ({db_url}).")
     else:

@@ -4,8 +4,14 @@ from accounts.db.models import Base
 
 
 class ManagementService:
-    def __init__(self, db_url):
+    def init_with_url(self, db_url):
         self.engine = create_engine(db_url, echo=False)
+        return self
+
+    # for testing purposes
+    def init_with_engine(self, engine):
+        self.engine = engine
+        return self
 
     def reset_database(self):
         Base.metadata.drop_all(self.engine)
