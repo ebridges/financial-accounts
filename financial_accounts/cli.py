@@ -181,7 +181,7 @@ def parse_arguments():
 
 def do_init_book(db_url, book_name):
     with BookService(db_url=db_url) as book_service:
-        new_book = book_service.create_new_book(book_name=args.book_name)
+        new_book = book_service.create_new_book(book_name=book_name)
         print(f"Created book '{book_name}' with id={new_book.id}")
 
 
