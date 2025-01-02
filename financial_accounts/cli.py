@@ -10,7 +10,6 @@ from financial_accounts.business.book_service import BookService
 
 DEFAULT_DB_URL = "sqlite:///db/accounting-system.db"
 DEFAULT_BOOK = "personal"
-DEFAULT_ROOT_ACCOUNT = "ROOT"
 
 '''
 CLI program for the `accounts` application.
@@ -92,7 +91,11 @@ def main():
             args.txn_desc,
             args.debit_acct,
             args.credit_acct,
+            args.amount,
         )
+
+    elif args.command == "delete-transaction":
+        do_delete_transaction(args.db_url, args.txn_id)
 
     return 0
 
@@ -140,8 +143,7 @@ def parse_arguments():
     sp_add_account.add_argument(
         "--parent-name",
         "-p",
-        default=DEFAULT_ROOT_ACCOUNT,
-        help=f"Parent account name (optional, default: '{DEFAULT_ROOT_ACCOUNT}')",
+        help="Parent account name. Optional.",
     )
     sp_add_account.add_argument(
         "--hidden", default=False, action="store_true", help="Mark account as hidden (optional)"
@@ -176,13 +178,17 @@ def parse_arguments():
     sp_book_txn.add_argument("--credit-acct", "-y", required=True, help="Credit account name")
     sp_book_txn.add_argument("--amount", "-a", required=True, help="Amount")
 
+    # delete-transaction
+    sp_book_txn = subparsers.add_parser("delete-transaction", help="Delete a transaction by ID")
+    sp_book_txn.add_argument("--txn-id", "-T", required=True, help="Transaction ID")
+
     return parser.parse_args()
 
 
 def do_init_book(db_url, book_name):
     with BookService(db_url=db_url) as book_service:
         new_book = book_service.create_new_book(book_name=book_name)
-        print(f"Created book '{book_name}' with id={new_book.id}")
+        print(f'New book: {new_book.id}')
 
 
 def do_add_account(
@@ -197,7 +203,7 @@ def do_add_account(
     placeholder,
 ):
     with AccountService(db_url=db_url) as acct_service:
-        new_account = acct_service.create_account(
+        new_account = acct_service.add_account(
             book_name,
             parent_name,
             acct_name,
@@ -218,9 +224,13 @@ def do_list_accounts(db_url, book_name):
         else:
             print(f"Accounts in book '{book_name}':")
             for a in accounts:
+                parent_account_name = None
+                if a.parent_account_id:
+                    parent_account = acct_service.lookup_account_by_id(a.parent_account_id)
+                    parent_account_name = parent_account.name
                 print(
                     f" - [ID={a.id}] Name={a.name}, Code={a.code}, Type={a.acct_type}, "
-                    f"Hidden={a.hidden}, Placeholder={a.placeholder}"
+                    f"Parent={parent_account_name}, Hidden={a.hidden}, Placeholder={a.placeholder}"
                 )
 
 
@@ -232,11 +242,21 @@ def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credi
             txn_desc=txn_desc,
             debit_acct=debit_acct,
             credit_acct=credit_acct,
+            amount=amount,
         )
         print(
             f"Created transaction {txn_id}, debiting '{debit_acct}' / "
             f"crediting '{credit_acct}' for ${amount}"
         )
+
+
+def do_delete_transaction(db_url, txn_id):
+    with TransactionService(db_url=db_url) as txn_service:
+        try:
+            txn_service.delete_transaction(transaction_id=txn_id)
+        except ValueError as e:
+            print(f'Transaction ID {txn_id} was not deleted. {e}')
+        print(f'Transaction ID {txn_id} successfully deleted.')
 
 
 def do_init_db(db_url, confirm):

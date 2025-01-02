@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime
 
 from financial_accounts.business.base_service import BaseService
 
@@ -12,6 +13,9 @@ class TransactionService(BaseService):
         # parse amount
         amt = Decimal(value=amount)
 
+        # parse date
+        date = datetime.strptime(txn_date, "%Y-%m-%d").date()
+
         debit_acct = self.data_access.get_account_by_name_for_book(book.id, debit_acct)
         if not debit_acct:
             print(f"Debit account '{debit_acct}' not found in book '{book_name}'.")
@@ -23,7 +27,7 @@ class TransactionService(BaseService):
 
         txn = self.data_access.create_transaction(
             book_id=book.id,
-            transaction_date=txn_date,
+            transaction_date=date,
             transaction_description=txn_desc,
         )
 
@@ -32,3 +36,9 @@ class TransactionService(BaseService):
         self.data_access.create_split(transaction_id=txn.id, account_id=credit_acct.id, amount=-amt)
 
         return txn.id
+
+    def delete_transaction(self, transaction_id):
+        txn = self.data_access.get_transaction(txn_id=transaction_id)
+        if not txn:
+            raise ValueError(f'No transaction exists with ID: {transaction_id}')
+        self.data_access.delete_transaction(txn_id=transaction_id)

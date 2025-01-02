@@ -8,6 +8,7 @@ class BookService(BaseService):
             print(f"Book '{book_name}' already exists with id={book.id}")
         else:
             book = self.data_access.create_book(book_name)
+            print(f"Created book '{book_name}' with id={book.id}")
 
         return book
 

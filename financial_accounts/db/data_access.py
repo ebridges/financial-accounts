@@ -195,9 +195,12 @@ class DAL:
         return txn
 
     def delete_transaction(self, txn_id: str) -> bool:
+        splits = self.session.query(Split).filter_by(transaction_id=txn_id)
         txn = self.session.query(Transactions).filter_by(id=txn_id).one_or_none()
         if not txn:
             return False
+        for split in splits:
+            self.session.delete(split)
         self.session.delete(txn)
         self.session.commit()
         return True
