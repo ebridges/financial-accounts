@@ -6,6 +6,9 @@ authors = ["Edward Bridges <github@eqbridges.com>"]
 license = "MIT"
 readme = "README.md"
 
+[tool.poetry.scripts]
+accounts-cli = 'cli:main'
+
 [tool.poetry.dependencies]
 python = "^3.13"
 sqlalchemy = "^2.0.36"
