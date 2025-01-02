@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   test-and-publish:
     runs-on: ubuntu-latest
@@ -32,10 +36,8 @@ jobs:
         run: |
           poetry run pytest
 
-      # # Step 5: Publish to PyPI
-      # - name: Publish to PyPI
-      #   env:
-      #     POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
-      #   run: |
-      #     poetry config pypi-token.pypi $POETRY_PYPI_TOKEN_PYPI
-      #     poetry publish --build
+      # # Step 5: Build and Publish to PyPI using OIDC
+      # - name: Publish to PyPI using Trusted Publishing
+      #   uses: pypa/gh-action-pypi-publish@release/v1
+      #   with:
+      #     packages-dir: dist/
