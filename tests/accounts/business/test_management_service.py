@@ -1,6 +1,8 @@
 import pytest
+import json
 
 from financial_accounts.db.models import Base
+from financial_accounts.business.account_service import AccountService
 from financial_accounts.business.book_service import BookService
 from financial_accounts.business.management_service import ManagementService
 
@@ -49,7 +51,6 @@ def test_export_account_hierarchy_as_json(db_url):
     json_output = mgmt_service.export_account_hierarchy_as_json()
 
     # Verify the JSON output
-    import json
     hierarchy = json.loads(json_output)
     assert len(hierarchy) == 1
     assert hierarchy[0]["name"] == "Root Account"
