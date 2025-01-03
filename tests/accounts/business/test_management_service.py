@@ -4,6 +4,7 @@ import json
 from financial_accounts.db.models import Base
 from financial_accounts.business.account_service import AccountService
 from financial_accounts.business.book_service import BookService
+from financial_accounts.business.account_service import AccountService
 from financial_accounts.business.management_service import ManagementService
 
 
