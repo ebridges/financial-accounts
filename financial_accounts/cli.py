@@ -62,9 +62,8 @@ def main():
     # ----------------------------------------------------------------------
     # Handle global flags
     # ----------------------------------------------------------------------
-    if args.version:
-        print(f'Version: {VERSION}')
-        return 0
+
+    # @todo add verbose flag & logging
 
     # ----------------------------------------------------------------------
     # Handle each individual command in its own transaction
