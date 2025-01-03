@@ -70,7 +70,9 @@ def test_create_account(dal, mock_session):
     mock_session.add = MagicMock()
     mock_session.commit = MagicMock()
 
-    account = dal.create_account(book_id="1", acct_type="ASSET", code="001", name="Test Account")
+    account = dal.create_account(
+        book_id="1", acct_type="ASSET", code="001", name="Test Account", full_name="Test Account"
+    )
     assert account.name == "Test Account"
     mock_session.add.assert_called_once()
     mock_session.commit.assert_called_once()

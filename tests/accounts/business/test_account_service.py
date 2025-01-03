@@ -25,6 +25,8 @@ def test_add_account(account_service):
     new_account = account_service.add_account(
         book_name="Test Book",
         parent_name=None,
+        parent_code="000",
+        full_name="Test Account",
         acct_name="Test Account",
         acct_code="001",
         acct_type="Asset",

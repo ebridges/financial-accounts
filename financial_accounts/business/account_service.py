@@ -13,8 +13,10 @@ class AccountService(BaseService):
     def add_account(
         self,
         book_name,
+        parent_code,
         parent_name,
         acct_name,
+        full_name,
         acct_code,
         acct_type,
         description,
@@ -27,7 +29,9 @@ class AccountService(BaseService):
 
         parent_id = None
         if parent_name:
-            parent_acct = self.data_access.get_account_by_name_for_book(book.id, parent_name)
+            parent_acct = self.data_access.get_account_by_name_for_book(
+                book.id, parent_code, parent_name
+            )
             if not parent_acct:
                 raise Exception(f"Parent account named '{parent_name}' not found.")
             parent_id = parent_acct.id
@@ -41,6 +45,7 @@ class AccountService(BaseService):
             hidden=hidden,
             placeholder=placeholder,
             parent_account_id=parent_id,
+            full_name=full_name,
         )
         return new_acct
 

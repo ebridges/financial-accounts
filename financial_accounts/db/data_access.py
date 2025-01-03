@@ -80,6 +80,7 @@ class DAL:
         acct_type: str,  # or AccountTypeEnum if you prefer
         code: str,
         name: str,
+        full_name: str,
         parent_account_id: Optional[str] = None,
         description: Optional[str] = None,
         hidden: bool = False,
@@ -102,6 +103,7 @@ class DAL:
             acct_type=acct_type,  # If using an Enum, do acct_type.value
             code=code,
             name=name,
+            full_name=full_name,
             parent_account_id=parent_account_id,
             description=description,
             hidden=hidden,
@@ -114,8 +116,15 @@ class DAL:
     def get_account(self, account_id: str) -> Optional[Account]:
         return self.session.query(Account).filter_by(id=account_id).one_or_none()
 
-    def get_account_by_name_for_book(self, book_id: str, acct_name: str) -> Optional[Account]:
-        return self.session.query(Account).filter_by(book_id=book_id, name=acct_name).one_or_none()
+    def get_account_by_name_for_book(
+        self, book_id: str, acct_code, acct_name: str
+    ) -> Optional[Account]:
+        account = (
+            self.session.query(Account)
+            .filter_by(book_id=book_id, code=acct_code, name=acct_name)
+            .one_or_none()
+        )
+        return account
 
     def update_account(self, account_id: str, **kwargs) -> Optional[Account]:
         """

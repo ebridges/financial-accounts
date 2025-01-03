@@ -84,6 +84,7 @@ class Account(Base, UpdatedAtMixin):
     )
     code = Column(String(50), nullable=False)
     name = Column(String(100), nullable=False)
+    full_name = Column(String(1024), nullable=False)
     description = Column(Text)
     hidden = Column(Boolean, nullable=False, default=False)
     placeholder = Column(Boolean, nullable=False, default=False)

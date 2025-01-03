@@ -80,6 +80,7 @@ def main():
             args.book_name,
             args.parent_name,
             args.acct_name,
+            args.acct_fullname,
             args.acct_code,
             args.acct_type,
             args.description,
@@ -148,6 +149,9 @@ def parse_arguments():
     )
     sp_add_account.add_argument("--acct-code", "-c", required=True, help="Account code")
     sp_add_account.add_argument("--acct-name", "-n", required=True, help="Account name")
+    sp_add_account.add_argument(
+        "--acct-fullname", "-f", required=True, help="The hierarchical path name of this account."
+    )
     sp_add_account.add_argument("--description", "-d", default="", help="Description (optional)")
     sp_add_account.add_argument(
         "--parent-name",
@@ -203,8 +207,10 @@ def do_init_book(db_url, book_name):
 def do_add_account(
     db_url,
     book_name,
+    parent_code,
     parent_name,
     acct_name,
+    acct_fullname,
     acct_code,
     acct_type,
     description,
@@ -214,8 +220,10 @@ def do_add_account(
     with AccountService(db_url=db_url) as acct_service:
         new_account = acct_service.add_account(
             book_name,
+            parent_code,
             parent_name,
             acct_name,
+            acct_fullname,
             acct_code,
             acct_type,
             description,
