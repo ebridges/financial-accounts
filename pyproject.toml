@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "financial_accounts"
-version = "v0.0.7"
+version = "v1.0.0"
 description = "A personal finance accounting system."
 authors = [ "Edward Bridges <github@eqbridges.com>",]
 license = "MIT"
