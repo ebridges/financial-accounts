@@ -22,7 +22,7 @@ Accounts CLI
 positional arguments:
   {init-db,init-book,add-account,list-accounts,book-transaction}
     init-db             Initialize the DB schema (drop/create tables)
-    init-book           Create a new Book if it doesn't exist
+    init-book           Create a new Book if it doesn't exist. (Default: 'personal')
     add-account         Add an account to a given book
     list-accounts       List all accounts for a given book
     book-transaction    Create a transaction w/ two splits (debit & credit)

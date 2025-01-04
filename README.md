@@ -31,20 +31,22 @@ The goal of this system is to provide a robust personal finance tracking and rec
 ## 4. Usage
 
 ```
-usage: cli.py [-h] [--db-url DB_URL] {init-db,init-book,add-account,list-accounts,book-transaction} ...
+Usage: accounts-cli [-h] [--db-url DB_URL] {init-db,init-book,add-account,list-accounts,book-transaction} ...
 
 Accounts CLI
 
 positional arguments:
-  {init-db,init-book,add-account,list-accounts,book-transaction}
+  {init-db,init-book,add-account,list-accounts,book-transaction,delete-transaction}
     init-db             Initialize the DB schema (drop/create tables)
-    init-book           Create a new Book if it doesn't exist
+    init-book           Create a new Book if it doesn't exist. (Default: 'personal')
     add-account         Add an account to a given book
     list-accounts       List all accounts for a given book
     book-transaction    Create a transaction w/ two splits (debit & credit)
+    delete-transaction  Delete a transaction by ID
 
 options:
   -h, --help            show this help message and exit
+  --version             Show version.
   --db-url, -u DB_URL   Database URL (default: sqlite:///db/accounting-system.db)
 ```
 
