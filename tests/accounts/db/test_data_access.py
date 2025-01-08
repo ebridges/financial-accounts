@@ -1,8 +1,11 @@
+from datetime import date, datetime
 import pytest
 from unittest.mock import MagicMock
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from financial_accounts.db.data_access import DAL, check_for_circular_path
-from financial_accounts.db.models import Book, Account, Transactions, Split
+from financial_accounts.db.models import Base, Book, Account, Transactions, Split
 
 
 @pytest.fixture
@@ -13,6 +16,23 @@ def mock_session():
 @pytest.fixture
 def dal(mock_session):
     return DAL(mock_session)
+
+
+@pytest.fixture(scope='module')
+def mem_session():
+    # Create an in-memory SQLite database
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.close()
+    Base.metadata.drop_all(engine)
+
+
+@pytest.fixture
+def mem_dal(mem_session):
+    return DAL(mem_session)
 
 
 def test_create_book(dal, mock_session):
@@ -190,94 +210,58 @@ def test_update_split(dal, mock_session):
     mock_session.commit.assert_called_once()
 
 
-from datetime import date
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from financial_accounts.db.models import Base, Book, Transactions, Split, Account
+def d(date_str):
+    return datetime.strptime(date_str, '%Y-%m-%d').date()
 
-@pytest.fixture(scope='module')
-def test_session():
-    # Create an in-memory SQLite database
-    engine = create_engine('sqlite:///:memory:')
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    yield session
-    session.close()
-    Base.metadata.drop_all(engine)
 
-def test_get_transactions_in_range(dal, test_session):
-    # Setup test data
-    book = Book(id="1", name="Test Book")
-    test_session.add(book)
-    test_session.commit()
+def test_get_transactions_in_range(mem_dal):
+    book = mem_dal.create_book("Test Book")
 
-    account = Account(
-        id="1",
-        book_id=book.id,
-        code="001",
-        name="Cash",
-        full_name="Assets:Cash",
-        acct_type="ASSET"
+    account = mem_dal.create_account(
+        book_id=book.id, acct_type="ASSET", code="001", name="Cash", full_name="Assets:Cash"
     )
-    test_session.add(account)
-    test_session.commit()
 
-    txn1 = Transactions(
-        id="1",
-        book_id=book.id,
-        transaction_date=date(2023, 10, 1),
-        transaction_description="Transaction 1"
+    txn1 = mem_dal.create_transaction(
+        book_id=book.id, transaction_date=d("2023-10-01"), transaction_description="Transaction 1"
     )
-    txn2 = Transactions(
-        id="2",
-        book_id=book.id,
-        transaction_date=date(2023, 10, 5),
-        transaction_description="Transaction 2"
+    txn2 = mem_dal.create_transaction(
+        book_id=book.id, transaction_date=d("2023-10-03"), transaction_description="Transaction 2"
     )
-    txn3 = Transactions(
-        id="3",
-        book_id=book.id,
-        transaction_date=date(2023, 10, 10),
-        transaction_description="Transaction 3"
+    txn3 = mem_dal.create_transaction(
+        book_id=book.id, transaction_date=d("2023-10-05"), transaction_description="Transaction 3"
     )
-    test_session.add_all([txn1, txn2, txn3])
-    test_session.commit()
+    txn4 = mem_dal.create_transaction(
+        book_id=book.id, transaction_date=d("2023-10-10"), transaction_description="Transaction 4"
+    )
 
-    split1 = Split(
-        id="1",
-        transaction_id=txn1.id,
-        account_id=account.id,
-        amount=100.00,
-        reconcile_state='n'
+    mem_dal.create_split(
+        transaction_id=txn1.id, account_id=account.id, amount=100.0, reconcile_state='n'
     )
-    split2 = Split(
-        id="2",
-        transaction_id=txn2.id,
-        account_id=account.id,
-        amount=200.00,
-        reconcile_state='c'
+    mem_dal.create_split(
+        transaction_id=txn2.id, account_id=account.id, amount=150.0, reconcile_state='c'
     )
-    split3 = Split(
-        id="3",
-        transaction_id=txn3.id,
-        account_id=account.id,
-        amount=300.00,
-        reconcile_state='r'
+    mem_dal.create_split(
+        transaction_id=txn3.id, account_id=account.id, amount=200.0, reconcile_state='c'
     )
-    test_session.add_all([split1, split2, split3])
-    test_session.commit()
+    mem_dal.create_split(
+        transaction_id=txn4.id, account_id=account.id, amount=300.0, reconcile_state='r'
+    )
 
     # Test date range filtering
-    transactions = dal.get_transactions_in_range(date(2023, 10, 1), date(2023, 10, 5))
-    assert len(transactions) == 2
+    transactions = mem_dal.get_transactions_in_range(date(2023, 10, 1), date(2023, 10, 5))
+    assert len(transactions) == 3
     assert transactions[0].transaction_description == "Transaction 1"
     assert transactions[1].transaction_description == "Transaction 2"
+    assert transactions[2].transaction_description == "Transaction 3"
 
     # Test date range with reconciliation status filtering
-    transactions_with_recon = dal.get_transactions_in_range(date(2023, 10, 1), date(2023, 10, 10), recon_status='c')
-    assert len(transactions_with_recon) == 1
+    transactions_with_recon = mem_dal.get_transactions_in_range(
+        date(2023, 10, 1), date(2023, 10, 10), recon_status='c'
+    )
+    assert len(transactions_with_recon) == 2
     assert transactions_with_recon[0].transaction_description == "Transaction 2"
+    assert transactions_with_recon[1].transaction_description == "Transaction 3"
+
 
 def test_delete_split(dal, mock_session):
     mock_session.query().filter_by().one_or_none.return_value = Split(id="1", memo="Test Split")

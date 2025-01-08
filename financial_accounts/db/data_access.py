@@ -2,7 +2,8 @@
 import uuid
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 
 from financial_accounts.db.models import Book, Account, Transactions, Split
 
@@ -190,6 +191,35 @@ class DAL:
 
     def list_transactions_for_book(self, book_id: str) -> List[Transactions]:
         return self.session.query(Transactions).filter_by(book_id=book_id).all()
+
+    def get_transactions_in_range(
+        self, start_date, end_date, recon_status=None
+    ) -> List[Transactions]:
+        """
+        Queries transactions by a date range, with optional filtering by reconcile_state.
+
+        :param session: SQLAlchemy session object.
+        :param start_date: The start of the transaction_date range (inclusive).
+        :param end_date: The end of the transaction_date range (inclusive).
+        :param recon_status: Optional filter for the reconcile_state field in related Splits.
+        :return: List of Transaction objects.
+        """
+        # Base query filtering by transaction_date
+        query = self.session.query(Transactions).filter(
+            and_(
+                Transactions.transaction_date >= start_date,
+                Transactions.transaction_date <= end_date,
+            )
+        )
+
+        # If recon_status is provided, add a join and filter
+        if recon_status is not None:
+            query = query.join(Transactions.splits).filter(Split.reconcile_state == recon_status)
+
+        # Optionally load splits eagerly to minimize lazy-loading during access
+        query = query.options(joinedload(Transactions.splits))
+
+        return query.all()
 
     def update_transaction(self, txn_id: str, **kwargs) -> Optional[Transactions]:
         txn = self.session.query(Transactions).filter_by(id=txn_id).one_or_none()
