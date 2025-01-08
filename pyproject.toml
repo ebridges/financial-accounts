@@ -18,7 +18,17 @@ pytest-cov = "^6.0.0"
 gitpython = "^3.1.44"
 
 [tool.pytest.ini_options]
-addopts = [ "--cov=financial_accounts", "--cov-report=term",]
+addopts = [ "--cov=financial_accounts", "--cov-report=term", "--ignore=release.py", "--ignore=financial_accounts/version.py", "--ignore=financial_accounts/cli.py"]
+
+[tool.coverage.run]
+omit = [
+    "release.py",
+    "financial_accounts/cli.py",
+    "financial_accounts/version.py",
+    "financial_accounts/__init__.py",
+    "financial_accounts/db/__init__.py",
+    "financial_accounts/business/__init__.py",
+]
 
 [tool.black]
 line-length = 100
