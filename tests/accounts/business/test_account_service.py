@@ -5,7 +5,7 @@ from financial_accounts.business.account_service import AccountService
 
 @pytest.fixture
 def account_service():
-    service = AccountService(db_url="sqlite:///:memory:")
+    service = AccountService.init_with_url(db_url="sqlite:///:memory:")
     service.data_access = MagicMock()
     return service
 

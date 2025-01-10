@@ -199,7 +199,7 @@ def parse_arguments():
 
 
 def do_init_book(db_url, book_name):
-    with BookService(db_url=db_url) as book_service:
+    with BookService().init_with_url(db_url=db_url) as book_service:
         new_book = book_service.create_new_book(book_name=book_name)
         print(f'New book: {new_book.id}')
 
@@ -217,7 +217,7 @@ def do_add_account(
     hidden,
     placeholder,
 ):
-    with AccountService(db_url=db_url) as acct_service:
+    with AccountService().init_with_url(db_url=db_url) as acct_service:
         new_account = acct_service.add_account(
             book_name,
             parent_code,
@@ -234,7 +234,7 @@ def do_add_account(
 
 
 def do_list_accounts(db_url, book_name):
-    with AccountService(db_url=db_url) as acct_service:
+    with AccountService().init_with_url(db_url=db_url) as acct_service:
         accounts = acct_service.list_accounts_in_book(book_name)
         if not accounts:
             print(f"No accounts in book '{book_name}'.")
@@ -252,7 +252,7 @@ def do_list_accounts(db_url, book_name):
 
 
 def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credit_acct, amount):
-    with TransactionService(db_url=db_url) as txn_service:
+    with TransactionService().init_with_url(db_url=db_url) as txn_service:
         txn_id = txn_service.enter_transaction(
             book_name=book_name,
             txn_date=txn_date,
@@ -268,7 +268,7 @@ def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credi
 
 
 def do_delete_transaction(db_url, txn_id):
-    with TransactionService(db_url=db_url) as txn_service:
+    with TransactionService().init_with_url(db_url=db_url) as txn_service:
         try:
             txn_service.delete_transaction(transaction_id=txn_id)
         except ValueError as e:

@@ -5,7 +5,7 @@ from financial_accounts.business.book_service import BookService
 
 @pytest.fixture
 def book_service():
-    service = BookService(db_url="sqlite:///:memory:")
+    service = BookService.init_with_url(db_url="sqlite:///:memory:")
     service.data_access = MagicMock()
     return service
 
