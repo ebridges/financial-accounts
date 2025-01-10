@@ -34,9 +34,9 @@ def test_export_account_hierarchy_as_json(db_url):
     mgmt_service.reset_database()
 
     # Create a sample account hierarchy
-    with BookService(db_url) as book_service:
+    with BookService().init_with_url(db_url) as book_service:
         book = book_service.create_new_book("Test Book")
-        with AccountService(db_url) as account_service:
+        with AccountService().init_with_session(book_service.SessionLocal) as account_service:
             root_account = account_service.add_account(
                 book_name=book.name,
                 parent_code=None,
@@ -77,7 +77,7 @@ def test_export_account_hierarchy_as_json(db_url):
 
 def test_reset_database(db_url):
     test_book_name = 'test_book_name'
-    with BookService(db_url) as service:
+    with BookService().init_with_url(db_url) as service:
         Base.metadata.create_all(service.engine)
         service.create_new_book(test_book_name)
         mgmt_service = ManagementService().init_with_engine(service.engine)

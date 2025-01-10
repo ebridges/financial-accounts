@@ -9,7 +9,7 @@ def db_url():
 
 
 def test_base_service_initialization(db_url):
-    with BaseService.init_with_url(db_url) as service:
+    with BaseService().init_with_url(db_url=db_url) as service:
         assert service.engine is not None
         assert service.SessionLocal is not None
         assert service.data_access is not None
