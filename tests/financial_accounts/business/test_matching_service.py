@@ -139,3 +139,37 @@ def test_batch_query_candidates(matching_service):
 
     # Verify the returned candidates
     assert len(candidates) == 3
+
+def test_import_transactions(matching_service):
+    # Mock transactions to import
+    imported_transactions = [
+        Transactions(
+            transaction_date=date(2025, 1, 10),
+            transaction_description="Payment Thank You - Web",
+            splits=[Split(account_id="acct1", amount=100), Split(account_id="acct2", amount=-100)],
+        )
+    ]
+
+    # Mock the transaction service's get_transactions_in_range method
+    matching_service.transaction_service.get_transactions_in_range = MagicMock(return_value=[
+        Transactions(
+            transaction_date=date(2025, 1, 9),
+            transaction_description="Payment Thank You - Web",
+            splits=[Split(account_id="acct1", amount=-100), Split(account_id="acct2", amount=100)],
+        )
+    ])
+
+    # Mock the transaction service's update_transaction method
+    matching_service.transaction_service.update_transaction = MagicMock()
+
+    # Mock the transaction service's enter_transaction method
+    matching_service.transaction_service.enter_transaction = MagicMock()
+
+    # Call the method
+    matching_service.import_transactions("book_id", "my-checking-account", imported_transactions)
+
+    # Verify that the update_transaction method was called to mark the transaction as matched
+    matching_service.transaction_service.update_transaction.assert_called_once()
+
+    # Verify that the enter_transaction method was not called since the transaction was matched
+    matching_service.transaction_service.enter_transaction.assert_not_called()
