@@ -139,6 +139,8 @@ class MatchingService(BaseService):
             book_name=txn.book_id,
             txn_date=txn.transaction_date.isoformat(),
             txn_desc=txn.transaction_description,
+            # todo - should be passing the account name, not id
+            # todo - 0th split is not necessarily the debit
             debit_acct=txn.splits[0].account_id,
             credit_acct=txn.splits[1].account_id,
             amount=txn.splits[0].amount,
