@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 def test_get_transactions_in_range(transaction_service):
     transaction_service.data_access.get_transactions_in_range.return_value = [
         MagicMock(id=1),
