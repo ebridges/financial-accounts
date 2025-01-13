@@ -1,6 +1,8 @@
+from typing import List
 from decimal import Decimal
 from datetime import datetime
 
+from financial_accounts.db.models import Transactions
 from financial_accounts.business.base_service import BaseService
 
 
@@ -41,4 +43,11 @@ class TransactionService(BaseService):
         txn = self.data_access.get_transaction(txn_id=transaction_id)
         if not txn:
             raise ValueError(f'No transaction exists with ID: {transaction_id}')
-        self.data_access.delete_transaction(txn_id=transaction_id)
+        return self.data_access.delete_transaction(txn_id=transaction_id)
+
+    def get_transactions_in_range(
+        self, book_id, start_date, end_date, recon_status=None, match_status=None
+    ) -> List[Transactions]:
+        return self.data_access.get_transactions_in_range(
+            start_date, end_date, recon_status, match_status
+        )

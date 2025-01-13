@@ -193,15 +193,15 @@ class DAL:
         return self.session.query(Transactions).filter_by(book_id=book_id).all()
 
     def get_transactions_in_range(
-        self, start_date, end_date, recon_status=None
+        self, start_date, end_date, recon_status=None, match_status=None
     ) -> List[Transactions]:
         """
-        Queries transactions by a date range, with optional filtering by reconcile_state.
+        Queries transactions by a date range, with optional filtering by reconcile_state and match status
 
-        :param session: SQLAlchemy session object.
         :param start_date: The start of the transaction_date range (inclusive).
         :param end_date: The end of the transaction_date range (inclusive).
         :param recon_status: Optional filter for the reconcile_state field in related Splits.
+        :param match_status: Optional filter for the reconcile_state field in related Splits.
         :return: List of Transaction objects.
         """
         # Base query filtering by transaction_date
@@ -215,6 +215,10 @@ class DAL:
         # If recon_status is provided, add a join and filter
         if recon_status is not None:
             query = query.join(Transactions.splits).filter(Split.reconcile_state == recon_status)
+
+        # If recon_status is provided, add a join and filter
+        if match_status is not None:
+            query = query.filter(Transactions.match_status == match_status)
 
         # Optionally load splits eagerly to minimize lazy-loading during access
         query = query.options(joinedload(Transactions.splits))
