@@ -29,7 +29,11 @@ def test_enter_transaction(transaction_service):
     assert txn_id == 1
 
 
-def test_get_transactions_in_range(transaction_service):
+def test_delete_transaction(transaction_service):
+    transaction_service.data_access.delete_transaction.return_value = True
+
+    result = transaction_service.delete_transaction(transaction_id=1)
+    assert result is True
     transaction_service.data_access.get_transactions_in_range.return_value = [
         MagicMock(id=1),
         MagicMock(id=2),
