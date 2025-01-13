@@ -94,3 +94,17 @@ def test_group_candidates_by_account(matching_service):
     assert txn3 in grouped["acct2"]
     assert txn2 in grouped["acct3"]
     assert txn3 in grouped["acct3"]
+
+def test_get_account_rules(matching_service):
+    # Test with an account that has specific rules
+    account_with_rules = "checking-chase-personal-1381"
+    rules = matching_service._get_account_rules(account_with_rules)
+    assert len(rules) == 1
+    assert rules[0]["account"] == account_with_rules
+
+    # Test with an account that does not have specific rules
+    account_without_rules = "nonexistent-account"
+    rules = matching_service._get_account_rules(account_without_rules)
+    assert len(rules) == 1
+    assert "date_offset" in rules[0]
+    assert "description_patterns" in rules[0]
