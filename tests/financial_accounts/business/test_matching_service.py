@@ -66,3 +66,31 @@ def test_is_match(matching_service):
     # Test matching
     result = matching_service._is_match(imported_txn, candidate_txn, rules)
     assert result
+
+def test_group_candidates_by_account(matching_service):
+    # Create mock transactions
+    txn1 = Transactions(
+        splits=[Split(account_id="acct1", amount=100), Split(account_id="acct2", amount=-100)]
+    )
+    txn2 = Transactions(
+        splits=[Split(account_id="acct1", amount=200), Split(account_id="acct3", amount=-200)]
+    )
+    txn3 = Transactions(
+        splits=[Split(account_id="acct2", amount=300), Split(account_id="acct3", amount=-300)]
+    )
+
+    # Group transactions by account
+    candidates = [txn1, txn2, txn3]
+    grouped = matching_service._group_candidates_by_account(candidates)
+
+    # Verify the grouping
+    assert len(grouped) == 3
+    assert len(grouped["acct1"]) == 2
+    assert len(grouped["acct2"]) == 2
+    assert len(grouped["acct3"]) == 2
+    assert txn1 in grouped["acct1"]
+    assert txn2 in grouped["acct1"]
+    assert txn1 in grouped["acct2"]
+    assert txn3 in grouped["acct2"]
+    assert txn2 in grouped["acct3"]
+    assert txn3 in grouped["acct3"]
