@@ -111,6 +111,7 @@ def test_get_account_rules(matching_service):
     assert "date_offset" in rules[0]
     assert "description_patterns" in rules[0]
 
+
 def test_batch_query_candidates(matching_service):
     # Mock transactions to import
     imported_transactions = [
@@ -119,11 +120,13 @@ def test_batch_query_candidates(matching_service):
     ]
 
     # Mock the transaction service's get_transactions_in_range method
-    matching_service.transaction_service.get_transactions_in_range = MagicMock(return_value=[
-        Transactions(transaction_date=date(2025, 1, 8)),
-        Transactions(transaction_date=date(2025, 1, 12)),
-        Transactions(transaction_date=date(2025, 1, 16)),
-    ])
+    matching_service.transaction_service.get_transactions_in_range = MagicMock(
+        return_value=[
+            Transactions(transaction_date=date(2025, 1, 8)),
+            Transactions(transaction_date=date(2025, 1, 12)),
+            Transactions(transaction_date=date(2025, 1, 16)),
+        ]
+    )
 
     # Call the method
     candidates = matching_service._batch_query_candidates("book_id", imported_transactions)
@@ -140,24 +143,33 @@ def test_batch_query_candidates(matching_service):
     # Verify the returned candidates
     assert len(candidates) == 3
 
+
 def test_import_transactions(matching_service):
     # Mock transactions to import
     imported_transactions = [
         Transactions(
             transaction_date=date(2025, 1, 10),
             transaction_description="Payment Thank You - Web",
-            splits=[Split(account_id="acct1", amount=100), Split(account_id="acct2", amount=-100)],
+            splits=[
+                Split(account_id="my-checking-account", amount=100),
+                Split(account_id="my-creditcard-account", amount=-100),
+            ],
         )
     ]
 
     # Mock the transaction service's get_transactions_in_range method
-    matching_service.transaction_service.get_transactions_in_range = MagicMock(return_value=[
-        Transactions(
-            transaction_date=date(2025, 1, 9),
-            transaction_description="Payment Thank You - Web",
-            splits=[Split(account_id="acct1", amount=-100), Split(account_id="acct2", amount=100)],
-        )
-    ])
+    matching_service.transaction_service.get_transactions_in_range = MagicMock(
+        return_value=[
+            Transactions(
+                transaction_date=date(2025, 1, 9),
+                transaction_description="Payment Thank You - Web",
+                splits=[
+                    Split(account_id="my-checking-account", amount=-100),
+                    Split(account_id="my-creditcard-account", amount=100),
+                ],
+            )
+        ]
+    )
 
     # Mock the transaction service's update_transaction method
     matching_service.transaction_service.update_transaction = MagicMock()
