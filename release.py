@@ -53,7 +53,7 @@ def update_version_in_versiontxt(file_path, new_version):
     """Update the version in the version file."""
     try:
         with open(file_path, "w") as file:
-            version_str = f"__version__ = '{new_version}'"
+            version_str = f"__version__ = '{new_version}'\n"
             file.write(version_str)
         logger.info(f"Updated version to {new_version} in {file_path}")
     except Exception as e:
