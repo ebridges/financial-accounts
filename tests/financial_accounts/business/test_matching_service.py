@@ -15,13 +15,13 @@ def matching_config():
         "global_defaults": {"date_offset": 2, "description_patterns": []},
         "accounts": [
             {
-                "account": "checking-chase-personal-1381",
+                "account": "my-checking-account",
                 "corresponding_accounts": {
-                    "creditcard-chase-personal-6063": {
+                    "my-creditcard-account": {
                         "date_offset": 1,
                         "description_patterns": [
-                            "^CHASE CREDIT CRD AUTOPAY\\s+PPD ID: \\d{10}$",
-                            "^Payment to Chase card ending in \\d{4} \\d{2}/\\d{2}$",
+                            "^CREDIT CRD AUTOPAY\\s+PPD ID: \\d{10}$",
+                            "^Payment to Credit card ending in \\d{4} \\d{2}/\\d{2}$",
                         ],
                     }
                 },
@@ -67,6 +67,7 @@ def test_is_match(matching_service):
     result = matching_service._is_match(imported_txn, candidate_txn, rules)
     assert result
 
+
 def test_group_candidates_by_account(matching_service):
     # Create mock transactions
     txn1 = Transactions(
@@ -95,9 +96,10 @@ def test_group_candidates_by_account(matching_service):
     assert txn2 in grouped["acct3"]
     assert txn3 in grouped["acct3"]
 
+
 def test_get_account_rules(matching_service):
     # Test with an account that has specific rules
-    account_with_rules = "checking-chase-personal-1381"
+    account_with_rules = "my-checking-account"
     rules = matching_service._get_account_rules(account_with_rules)
     assert len(rules) == 1
     assert rules[0]["account"] == account_with_rules
