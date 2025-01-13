@@ -6,7 +6,7 @@ from datetime import date
 from unittest.mock import MagicMock
 
 from financial_accounts.business.matching_service import MatchingService
-from financial_accounts.db.models import Transactions, Split
+from financial_accounts.db.models import Transaction, Split
 
 
 @pytest.fixture
@@ -50,11 +50,11 @@ def matching_service(matching_config):
 
 def test_is_match(matching_service):
     # Create mock transactions
-    imported_txn = Transactions(
+    imported_txn = Transaction(
         transaction_date=date(2025, 1, 10),
         splits=[Split(account_id="acct1", amount=100), Split(account_id="acct2", amount=-100)],
     )
-    candidate_txn = Transactions(
+    candidate_txn = Transaction(
         transaction_date=date(2025, 1, 9),
         transaction_description="Payment Thank You - Web",
         splits=[Split(account_id="acct1", amount=-100), Split(account_id="acct2", amount=100)],
@@ -70,13 +70,13 @@ def test_is_match(matching_service):
 
 def test_group_candidates_by_account(matching_service):
     # Create mock transactions
-    txn1 = Transactions(
+    txn1 = Transaction(
         splits=[Split(account_id="acct1", amount=100), Split(account_id="acct2", amount=-100)]
     )
-    txn2 = Transactions(
+    txn2 = Transaction(
         splits=[Split(account_id="acct1", amount=200), Split(account_id="acct3", amount=-200)]
     )
-    txn3 = Transactions(
+    txn3 = Transaction(
         splits=[Split(account_id="acct2", amount=300), Split(account_id="acct3", amount=-300)]
     )
 
@@ -115,16 +115,16 @@ def test_get_account_rules(matching_service):
 def test_batch_query_candidates(matching_service):
     # Mock transactions to import
     imported_transactions = [
-        Transactions(transaction_date=date(2025, 1, 10)),
-        Transactions(transaction_date=date(2025, 1, 15)),
+        Transaction(transaction_date=date(2025, 1, 10)),
+        Transaction(transaction_date=date(2025, 1, 15)),
     ]
 
     # Mock the transaction service's get_transactions_in_range method
     matching_service.transaction_service.get_transactions_in_range = MagicMock(
         return_value=[
-            Transactions(transaction_date=date(2025, 1, 8)),
-            Transactions(transaction_date=date(2025, 1, 12)),
-            Transactions(transaction_date=date(2025, 1, 16)),
+            Transaction(transaction_date=date(2025, 1, 8)),
+            Transaction(transaction_date=date(2025, 1, 12)),
+            Transaction(transaction_date=date(2025, 1, 16)),
         ]
     )
 
@@ -147,7 +147,7 @@ def test_batch_query_candidates(matching_service):
 def test_import_transactions(matching_service):
     # Mock transactions to import
     imported_transactions = [
-        Transactions(
+        Transaction(
             transaction_date=date(2025, 1, 10),
             transaction_description="Payment Thank You - Web",
             splits=[
@@ -160,7 +160,7 @@ def test_import_transactions(matching_service):
     # Mock the transaction service's get_transactions_in_range method
     matching_service.transaction_service.get_transactions_in_range = MagicMock(
         return_value=[
-            Transactions(
+            Transaction(
                 transaction_date=date(2025, 1, 9),
                 transaction_description="Payment Thank You - Web",
                 splits=[

@@ -5,7 +5,7 @@ from typing import List, Dict
 
 from financial_accounts.business.base_service import BaseService
 from financial_accounts.business.transaction_service import TransactionService
-from financial_accounts.db.models import Transactions
+from financial_accounts.db.models import Transaction
 
 DEFAULT_DATE_OFFSET = 2
 
@@ -23,7 +23,7 @@ class MatchingService(BaseService):
             return json.load(file)
 
     def import_transactions(
-        self, book_id: str, import_for_account: str, to_import: List[Transactions]
+        self, book_id: str, import_for_account: str, to_import: List[Transaction]
     ) -> None:
         """
         Match imported transactions against candidates in memory.
@@ -58,8 +58,8 @@ class MatchingService(BaseService):
                 self._add_transaction_to_ledger(txn)
 
     def _batch_query_candidates(
-        self, book_id: str, imported_transactions: List[Transactions]
-    ) -> List[Transactions]:
+        self, book_id: str, imported_transactions: List[Transaction]
+    ) -> List[Transaction]:
         """
         Query candidate transactions for all imported transactions in batch.
         """
@@ -85,8 +85,8 @@ class MatchingService(BaseService):
         return accounts or [self.config.get("fallback", {})]
 
     def _group_candidates_by_account(
-        self, candidates: List[Transactions]
-    ) -> Dict[str, List[Transactions]]:
+        self, candidates: List[Transaction]
+    ) -> Dict[str, List[Transaction]]:
         grouped = {}
         for candidate in candidates:
             for split in candidate.splits:
@@ -96,7 +96,7 @@ class MatchingService(BaseService):
                 grouped[account_id].append(candidate)
         return grouped
 
-    def _is_match(self, imported_txn: Transactions, candidate: Transactions, rules: Dict) -> bool:
+    def _is_match(self, imported_txn: Transaction, candidate: Transaction, rules: Dict) -> bool:
         """Check if an imported transaction matches a candidate."""
         # Match amounts (negated) by iterating over all splits
         match_found = False
@@ -129,11 +129,11 @@ class MatchingService(BaseService):
 
         return True
 
-    def _mark_matched(self, candidate: Transactions):
+    def _mark_matched(self, candidate: Transaction):
         """Update candidate to mark it as matched using TransactionService."""
         self.transaction_service.update_transaction(transaction_id=candidate.id, matched_status="m")
 
-    def _add_transaction_to_ledger(self, txn: Transactions):
+    def _add_transaction_to_ledger(self, txn: Transaction):
         """Add a new transaction to the ledger using TransactionService."""
         self.transaction_service.enter_transaction(
             book_name=txn.book_id,

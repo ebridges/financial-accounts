@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from financial_accounts.db.data_access import DAL, check_for_circular_path
-from financial_accounts.db.models import Base, Book, Account, Transactions, Split
+from financial_accounts.db.models import Base, Book, Account, Transaction, Split
 
 
 @pytest.fixture
@@ -126,7 +126,7 @@ def test_create_transaction(dal, mock_session):
 
 
 def test_get_transaction(dal, mock_session):
-    mock_session.query().filter_by().one_or_none.return_value = Transactions(
+    mock_session.query().filter_by().one_or_none.return_value = Transaction(
         id="1", transaction_description="Test Transaction"
     )
 
@@ -136,7 +136,7 @@ def test_get_transaction(dal, mock_session):
 
 def test_list_transactions_for_book(dal, mock_session):
     mock_session.query().filter_by().all.return_value = [
-        Transactions(id="1", transaction_description="Test Transaction")
+        Transaction(id="1", transaction_description="Test Transaction")
     ]
 
     transactions = dal.list_transactions_for_book("1")
@@ -145,7 +145,7 @@ def test_list_transactions_for_book(dal, mock_session):
 
 
 def test_update_transaction(dal, mock_session):
-    mock_session.query().filter_by().one_or_none.return_value = Transactions(
+    mock_session.query().filter_by().one_or_none.return_value = Transaction(
         id="1", transaction_description="Old Description"
     )
     mock_session.commit = MagicMock()
@@ -156,7 +156,7 @@ def test_update_transaction(dal, mock_session):
 
 
 def test_delete_transaction(dal, mock_session):
-    mock_session.query().filter_by().one_or_none.return_value = Transactions(
+    mock_session.query().filter_by().one_or_none.return_value = Transaction(
         id="1", transaction_description="Test Transaction"
     )
     mock_session.delete = MagicMock()

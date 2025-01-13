@@ -101,7 +101,7 @@ class Account(Base, UpdatedAtMixin):
     splits = relationship("Split", back_populates="account", cascade="all, delete-orphan")
 
 
-class Transactions(Base, UpdatedAtMixin):
+class Transaction(Base, UpdatedAtMixin):
     __tablename__ = 'transactions'
     id = Column(GUID(), primary_key=True)
     book_id = Column(

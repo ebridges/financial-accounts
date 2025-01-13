@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 
-from financial_accounts.db.models import Book, Account, Transactions, Split
+from financial_accounts.db.models import Book, Account, Transaction, Split
 
 
 def check_for_circular_path(
@@ -174,9 +174,9 @@ class DAL:
     # --------------------------------------------------------------------------
     def create_transaction(
         self, book_id: str, transaction_date, transaction_description: str
-    ) -> Transactions:
+    ) -> Transaction:
         new_id = uuid.uuid4()
-        txn = Transactions(
+        txn = Transaction(
             id=new_id,
             book_id=book_id,
             transaction_date=transaction_date,
@@ -186,15 +186,15 @@ class DAL:
         self.session.commit()
         return txn
 
-    def get_transaction(self, txn_id: str) -> Optional[Transactions]:
-        return self.session.query(Transactions).filter_by(id=txn_id).one_or_none()
+    def get_transaction(self, txn_id: str) -> Optional[Transaction]:
+        return self.session.query(Transaction).filter_by(id=txn_id).one_or_none()
 
-    def list_transactions_for_book(self, book_id: str) -> List[Transactions]:
-        return self.session.query(Transactions).filter_by(book_id=book_id).all()
+    def list_transactions_for_book(self, book_id: str) -> List[Transaction]:
+        return self.session.query(Transaction).filter_by(book_id=book_id).all()
 
     def get_transactions_in_range(
         self, start_date, end_date, recon_status=None, match_status=None
-    ) -> List[Transactions]:
+    ) -> List[Transaction]:
         """
         Queries transactions by a date range, with optional filtering by reconcile_state and match status
 
@@ -205,28 +205,28 @@ class DAL:
         :return: List of Transaction objects.
         """
         # Base query filtering by transaction_date
-        query = self.session.query(Transactions).filter(
+        query = self.session.query(Transaction).filter(
             and_(
-                Transactions.transaction_date >= start_date,
-                Transactions.transaction_date <= end_date,
+                Transaction.transaction_date >= start_date,
+                Transaction.transaction_date <= end_date,
             )
         )
 
         # If recon_status is provided, add a join and filter
         if recon_status is not None:
-            query = query.join(Transactions.splits).filter(Split.reconcile_state == recon_status)
+            query = query.join(Transaction.splits).filter(Split.reconcile_state == recon_status)
 
         # If recon_status is provided, add a join and filter
         if match_status is not None:
-            query = query.filter(Transactions.match_status == match_status)
+            query = query.filter(Transaction.match_status == match_status)
 
         # Optionally load splits eagerly to minimize lazy-loading during access
-        query = query.options(joinedload(Transactions.splits))
+        query = query.options(joinedload(Transaction.splits))
 
         return query.all()
 
-    def update_transaction(self, txn_id: str, **kwargs) -> Optional[Transactions]:
-        txn = self.session.query(Transactions).filter_by(id=txn_id).one_or_none()
+    def update_transaction(self, txn_id: str, **kwargs) -> Optional[Transaction]:
+        txn = self.session.query(Transaction).filter_by(id=txn_id).one_or_none()
         if not txn:
             return None
 
@@ -239,7 +239,7 @@ class DAL:
 
     def delete_transaction(self, txn_id: str) -> bool:
         splits = self.session.query(Split).filter_by(transaction_id=txn_id)
-        txn = self.session.query(Transactions).filter_by(id=txn_id).one_or_none()
+        txn = self.session.query(Transaction).filter_by(id=txn_id).one_or_none()
         if not txn:
             return False
         for split in splits:
