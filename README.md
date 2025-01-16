@@ -1,7 +1,7 @@
 # Accounting System
 
 ## 1. Overview and Objectives
-The goal of this system is to provide a robust personal finance tracking and reconciliation application. Users can track transactions across multiple accounts, import data from financial institutions, categorize expenses, and perform monthly (or periodic) reconciliations against bank statements. The design draws on double-entry accounting principles—ensuring data consistency, clarity of debits/credits, and the ability to generate meaningful financial reports.
+This is a double entry accounting system that provides a robust personal finance tracking and reconciliation application. Users can track transactions across multiple accounts, import data from financial institutions, match preexisting transactions in a configurable way, categorize expenses, and perform periodic reconciliations against bank statements. The design draws on double-entry accounting principles—ensuring data consistency, clarity of debits/credits, and the ability to generate meaningful financial reports.
 
 ### Key Objectives
 1. **Data Integrity**
@@ -24,11 +24,16 @@ The goal of this system is to provide a robust personal finance tracking and rec
 
 ![](docs/img/schema-diagram.png)
 
-## 3. System design
+## 3. System design goals
 
-- The application stores data in a SQLite Database identified by a DB URL provided as an argument.
+- The application stores data in a relational datamodel identified by a DB URL provided as an argument.
+- Implemented with a service based architecture supporting web and CLI user interfaces.
+- Ability to scale to hundreds of thousands of transactions per month.
+- Support a basic set of accounting reports (balances, expenses, periodic trends) as well as adhoc queries.
 
 ## 4. Usage
+
+### Command line usage
 
 ```
 Usage: accounts-cli [-h] [--db-url DB_URL] {init-db,init-book,add-account,list-accounts,book-transaction} ...
@@ -49,6 +54,10 @@ options:
   --version             Show version.
   --db-url, -u DB_URL   Database URL (default: sqlite:///db/accounting-system.db)
 ```
+
+### Web usage
+
+@todo
 
 ## A. License
 
