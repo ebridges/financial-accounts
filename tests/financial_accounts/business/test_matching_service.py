@@ -101,23 +101,31 @@ def test_get_account_rules(matching_service):
     # Test with an account that has specific rules
     account_with_rules = "my-checking-account"
     rules = matching_service._get_account_rules(account_with_rules)
-    assert len(rules) == 1
-    assert rules[0]["account"] == account_with_rules
+
+    # Assert the result is a dictionary
+    assert isinstance(rules, dict)
+
+    # Assert that the rules contain specific corresponding accounts
+    assert "my-creditcard-account" in rules
+    assert rules["my-creditcard-account"]["date_offset"] == 1
+    assert isinstance(rules["my-creditcard-account"]["description_patterns"], list)
 
     # Test with an account that does not have specific rules
     account_without_rules = "nonexistent-account"
     rules = matching_service._get_account_rules(account_without_rules)
-    assert len(rules) == 1
-    assert "date_offset" in rules[0]
-    assert "description_patterns" in rules[0]
+
+    # Assert the result is an empty dictionary for non-existent accounts
+    assert isinstance(rules, dict)
+    assert len(rules) == 0
 
 
 def test_batch_query_candidates(matching_service):
-    # Mock transactions to import
+    # Mock imported transactions
     imported_transactions = [
         Transaction(transaction_date=date(2025, 1, 10)),
         Transaction(transaction_date=date(2025, 1, 15)),
     ]
+    matching_accounts = ["account_1", "account_2"]
 
     # Mock the transaction service's get_transactions_in_range method
     matching_service.transaction_service.get_transactions_in_range = MagicMock(
@@ -129,23 +137,31 @@ def test_batch_query_candidates(matching_service):
     )
 
     # Call the method
-    candidates = matching_service._batch_query_candidates("book_id", imported_transactions)
+    candidates = matching_service._batch_query_candidates(
+        "book_id", imported_transactions, matching_accounts
+    )
 
-    # Verify the method was called with the correct date range
+    # Verify the method was called with the correct date range and accounts
     matching_service.transaction_service.get_transactions_in_range.assert_called_once_with(
         book_id="book_id",
         start_date=date(2025, 1, 8),  # 2 days before the earliest transaction
         end_date=date(2025, 1, 17),  # 2 days after the latest transaction
         recon_status=None,
         match_status=None,
+        accounts_to_match_for=matching_accounts,
     )
 
     # Verify the returned candidates
     assert len(candidates) == 3
 
+    # Verify that candidates contain expected transactions
+    assert candidates[0].transaction_date == date(2025, 1, 8)
+    assert candidates[1].transaction_date == date(2025, 1, 12)
+    assert candidates[2].transaction_date == date(2025, 1, 16)
+
 
 def test_import_transactions(matching_service):
-    # Mock transactions to import
+    # Mock imported transactions
     imported_transactions = [
         Transaction(
             transaction_date=date(2025, 1, 10),
@@ -157,8 +173,18 @@ def test_import_transactions(matching_service):
         )
     ]
 
-    # Mock the transaction service's get_transactions_in_range method
-    matching_service.transaction_service.get_transactions_in_range = MagicMock(
+    # Mock the account rules
+    matching_service._get_account_rules = MagicMock(
+        return_value={
+            "my-creditcard-account": {
+                "date_offset": 1,
+                "description_patterns": ["^Payment Thank You - Web$"],
+            }
+        }
+    )
+
+    # Mock batch query candidates
+    matching_service._batch_query_candidates = MagicMock(
         return_value=[
             Transaction(
                 transaction_date=date(2025, 1, 9),
@@ -171,17 +197,46 @@ def test_import_transactions(matching_service):
         ]
     )
 
-    # Mock the transaction service's update_transaction method
-    matching_service.transaction_service.update_transaction = MagicMock()
+    # Mock grouping candidates by account
+    matching_service._group_candidates_by_account = MagicMock(
+        return_value={
+            "my-creditcard-account": [
+                Transaction(
+                    transaction_date=date(2025, 1, 9),
+                    transaction_description="Payment Thank You - Web",
+                    splits=[
+                        Split(account_id="my-checking-account", amount=-100),
+                        Split(account_id="my-creditcard-account", amount=100),
+                    ],
+                )
+            ]
+        }
+    )
 
-    # Mock the transaction service's enter_transaction method
-    matching_service.transaction_service.enter_transaction = MagicMock()
+    # Mock helper methods
+    matching_service._is_match = MagicMock(return_value=True)
+    matching_service._mark_matched = MagicMock()
+    matching_service._add_transaction_to_ledger = MagicMock()
 
     # Call the method
     matching_service.import_transactions("book_id", "my-checking-account", imported_transactions)
 
-    # Verify that the update_transaction method was called to mark the transaction as matched
-    matching_service.transaction_service.update_transaction.assert_called_once()
+    # Verify _get_account_rules was called correctly
+    matching_service._get_account_rules.assert_called_once_with("my-checking-account")
 
-    # Verify that the enter_transaction method was not called since the transaction was matched
-    matching_service.transaction_service.enter_transaction.assert_not_called()
+    # Verify _batch_query_candidates was called with the right parameters
+    matching_service._batch_query_candidates.assert_called_once_with(
+        "book_id", imported_transactions, ["my-creditcard-account"]
+    )
+
+    # Verify _group_candidates_by_account was called
+    matching_service._group_candidates_by_account.assert_called_once()
+
+    # Verify _is_match was called to match the transactions
+    matching_service._is_match.assert_called_once()
+
+    # Verify _mark_matched was called since a match was found
+    matching_service._mark_matched.assert_called_once()
+
+    # Verify _add_transaction_to_ledger was not called since the transaction was matched
+    matching_service._add_transaction_to_ledger.assert_not_called()

@@ -70,7 +70,7 @@ class Book(Base, UpdatedAtMixin):
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
     accounts = relationship("Account", back_populates="book", cascade="all, delete-orphan")
-    transactions = relationship("Transactions", back_populates="book", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="book", cascade="all, delete-orphan")
 
 
 class Account(Base, UpdatedAtMixin):
@@ -111,7 +111,7 @@ class Transaction(Base, UpdatedAtMixin):
     entry_date = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     transaction_description = Column(Text, nullable=False)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
-
+    match_status = Column(String(1), server_default='n', nullable=False)  # n=not, m=matched
     book = relationship("Book", back_populates="transactions")
     splits = relationship("Split", back_populates="transaction", cascade="all, delete-orphan")
 
@@ -135,5 +135,5 @@ class Split(Base, UpdatedAtMixin):
     )  # n=not, c=cleared, r=reconciled
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
-    transaction = relationship("Transactions", back_populates="splits")
+    transaction = relationship("Transaction", back_populates="splits")
     account = relationship("Account", back_populates="splits")

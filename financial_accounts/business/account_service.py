@@ -49,9 +49,16 @@ class AccountService(BaseService):
         )
         return new_acct
 
+    def lookup_account_by_name(self, book_id, account_name):
+        account = self.data_access.get_account_by_fullname_for_book(
+            book_id=book_id, acct_name=account_name
+        )
+        if not account:
+            raise Exception(f"No account found with name '{account_name}'.")
+        return account
+
     def lookup_account_by_id(self, account_id):
         account = self.data_access.get_account(account_id=account_id)
         if not account:
-            print(f"No account found with id '{account_id}'.")
-            return None
+            raise Exception(f"No account found with id '{account_id}'.")
         return account

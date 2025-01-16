@@ -22,8 +22,8 @@ def test_enter_transaction(transaction_service):
         book_name="Test Book",
         txn_date="2023-10-01",
         txn_desc="Test Transaction",
-        debit_acct="Debit Account",
-        credit_acct="Credit Account",
+        to_acct="Debit Account",
+        from_acct="Credit Account",
         amount="100.00",
     )
     assert txn_id == 1

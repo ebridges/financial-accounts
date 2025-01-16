@@ -117,6 +117,16 @@ class DAL:
     def get_account(self, account_id: str) -> Optional[Account]:
         return self.session.query(Account).filter_by(id=account_id).one_or_none()
 
+    def get_account_by_fullname_for_book(
+        self, book_id: str, acct_fullname: str
+    ) -> Optional[Account]:
+        account = (
+            self.session.query(Account)
+            .filter_by(book_id=book_id, full_name=acct_fullname)
+            .one_or_none()
+        )
+        return account
+
     def get_account_by_name_for_book(
         self, book_id: str, acct_code, acct_name: str
     ) -> Optional[Account]:
@@ -172,6 +182,25 @@ class DAL:
     # --------------------------------------------------------------------------
     # Transactions
     # --------------------------------------------------------------------------
+    def insert_transaction(self, txn: Transaction):
+        try:
+            self.session.add(txn)
+            self.session.commit()
+        except Exception as e:
+            self.session.rollback()
+            raise e
+        return txn.id
+
+    def update_transaction_match_status(self, transaction_id, match_status='m') -> None:
+        try:
+            self.session.query(Transaction).filter_by(id=transaction_id).update(
+                {"match_status": match_status}
+            )
+            self.session.commit()
+        except Exception as e:
+            self.session.rollback()
+            raise e
+
     def create_transaction(
         self, book_id: str, transaction_date, transaction_description: str
     ) -> Transaction:
@@ -193,7 +222,7 @@ class DAL:
         return self.session.query(Transaction).filter_by(book_id=book_id).all()
 
     def get_transactions_in_range(
-        self, start_date, end_date, recon_status=None, match_status=None
+        self, start_date, end_date, recon_status=None, match_status=None, accounts_to_match_for=None
     ) -> List[Transaction]:
         """
         Queries transactions by a date range, with optional filtering by reconcile_state and match status
@@ -211,6 +240,11 @@ class DAL:
                 Transaction.transaction_date <= end_date,
             )
         )
+
+        if accounts_to_match_for is not None:
+            query = query.join(Transaction.splits).filter(
+                Split.account.full_name in accounts_to_match_for
+            )
 
         # If recon_status is provided, add a join and filter
         if recon_status is not None:
