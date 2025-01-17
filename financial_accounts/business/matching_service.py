@@ -2,6 +2,7 @@ import json
 import re
 from datetime import timedelta
 from typing import List, Dict
+from logging import info
 
 from financial_accounts.business.base_service import BaseService
 from financial_accounts.business.transaction_service import TransactionService
@@ -36,20 +37,22 @@ class MatchingService(BaseService):
         candidate_cache = self._group_candidates_by_account(candidates=candidates)
 
         for txn in to_import:
-            matched = False
+            matched = None
 
             # Iterate through all corresponding accounts in the rules
             for candidate_account in rules.keys():
                 potential_matches = candidate_cache.get(candidate_account, [])
                 for candidate in potential_matches:
                     if self._is_match(txn, candidate, rules):
-                        self._mark_matched(candidate)
-                        matched = True
+                        matched = candidate
                         break
-                if matched:
+                if matched is not None:
                     break
 
-            if not matched:
+            if matched is not None:
+                self._mark_matched(matched)
+                info(f'Transaction {txn} matched.')
+            else:
                 self._add_transaction_to_ledger(txn)
 
     def _batch_query_candidates(
