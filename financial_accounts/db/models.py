@@ -2,8 +2,6 @@
 from uuid import uuid4, UUID
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy import event
-from sqlalchemy.engine import Engine
 from enum import Enum
 
 from sqlalchemy import (
@@ -22,13 +20,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, relationship
 from financial_accounts.db.updated_mixin import UpdatedAtMixin
 
-# Disable the use of RETURNING for SQLite
-@event.listens_for(Engine, "before_cursor_execute")
-def disable_returning_for_sqlite(conn, cursor, statement, parameters, context, executemany):
-    if conn.dialect.name == "sqlite":
-        if "RETURNING" in statement:
-            statement = statement.replace(" RETURNING ", " --RETURNING ")
-    return statement, parameters
 
 Base = declarative_base()
 
