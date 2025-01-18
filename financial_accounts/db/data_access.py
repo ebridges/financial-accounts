@@ -182,6 +182,14 @@ class DAL:
     # --------------------------------------------------------------------------
     # Transactions
     # --------------------------------------------------------------------------
+    def insert_transactions(self, transactions: List[Transaction]):
+        try:
+            self.session.add_all(transactions)
+            self.session.commit()
+        except Exception as e:
+            self.session.rollback()
+            raise e
+
     def insert_transaction(self, txn: Transaction):
         try:
             self.session.add(txn)
