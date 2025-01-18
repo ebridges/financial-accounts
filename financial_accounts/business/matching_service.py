@@ -14,7 +14,6 @@ DEFAULT_DATE_OFFSET = 0
 class MatchingService(BaseService):
     def __init__(self, config_path: str, transaction_service: TransactionService):
         super().__init__()
-        self.init_with_session(session_local=transaction_service.SessionLocal)
         self.config = self._load_config(config_path)
         self.transaction_service = transaction_service
 
