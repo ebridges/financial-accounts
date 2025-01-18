@@ -116,7 +116,7 @@ class Transaction(Base, UpdatedAtMixin):
     splits = relationship("Split", back_populates="transaction", cascade="all, delete-orphan")
 
     def __str__(self):
-        return f'txn_date: {self.transaction_date}, description: {self.transaction_description}, amount: {self.splits[0].amount}'
+        return f'txn_date: {self.transaction_date}, match_status: {self.match_status}, description: {self.transaction_description}, amount: {self.splits[0].amount}'
 
 
 class Split(Base, UpdatedAtMixin):
