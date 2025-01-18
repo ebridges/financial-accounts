@@ -1,33 +1,32 @@
 # data_access.py
-import uuid
 from typing import List, Optional
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import joinedload
 from sqlalchemy import and_
 
 from financial_accounts.db.models import Book, Account, Transaction, Split
 
 
-def check_for_circular_path(
-    session: Session, account_id: str, parent_account_id: Optional[str]
-) -> bool:
-    """
-    Returns True if a cycle is found, False otherwise.
-    We'll do a simple upward traversal from parent_account_id until we either
-    reach None or the 'account_id' itself.
-    """
-    if not parent_account_id:
-        return False  # no parent => no cycle
+# def check_for_circular_path(
+#     session: Session, account_id: str, parent_account_id: Optional[str]
+# ) -> bool:
+#     """
+#     Returns True if a cycle is found, False otherwise.
+#     We'll do a simple upward traversal from parent_account_id until we either
+#     reach None or the 'account_id' itself.
+#     """
+#     if not parent_account_id:
+#         return False  # no parent => no cycle
 
-    current_id = parent_account_id
-    while current_id is not None:
-        if current_id == account_id:
-            return True
-        parent = session.query(Account.parent_account_id).filter(Account.id == current_id).first()
-        if parent is None or parent[0] is None:
-            return False
-        current_id = parent[0]
-    return False
+#     current_id = parent_account_id
+#     while current_id is not None:
+#         if current_id == account_id:
+#             return True
+#         parent = session.query(Account.parent_account_id).filter(Account.id == current_id).first()
+#         if parent is None or parent[0] is None:
+#             return False
+#         current_id = parent[0]
+#     return False
 
 
 class DAL:
@@ -41,8 +40,7 @@ class DAL:
     # Book
     # --------------------------------------------------------------------------
     def create_book(self, name: str) -> Book:
-        new_id = uuid.uuid4()
-        book = Book(id=new_id, name=name)
+        book = Book(name=name)
         self.session.add(book)
         self.session.commit()
         return book
@@ -91,15 +89,12 @@ class DAL:
         Creates a new Account. The acct_type param must be one of
         ('ASSET','LIABILITY','INCOME','EXPENSE','EQUITY').
         """
-        new_id = uuid.uuid4()
-
         # Check for circular references
-        if parent_account_id:
-            if check_for_circular_path(self.session, str(new_id), parent_account_id):
-                raise ValueError("Circular parent reference detected.")
+        # if parent_account_id:
+        #     if check_for_circular_path(self.session, str(new_id), parent_account_id):
+        #         raise ValueError("Circular parent reference detected.")
 
         account = Account(
-            id=new_id,
             book_id=book_id,
             acct_type=acct_type,  # If using an Enum, do acct_type.value
             code=code,
@@ -145,11 +140,11 @@ class DAL:
         if not account:
             return None
 
-        new_parent_id = kwargs.get("parent_account_id", account.parent_account_id)
-        if new_parent_id != account.parent_account_id:
-            # check for cycle
-            if check_for_circular_path(self.session, account_id, new_parent_id):
-                raise ValueError("Circular parent reference detected.")
+        # new_parent_id = kwargs.get("parent_account_id", account.parent_account_id)
+        # if new_parent_id != account.parent_account_id:
+        #     # check for cycle
+        #     if check_for_circular_path(self.session, account_id, new_parent_id):
+        #         raise ValueError("Circular parent reference detected.")
 
         # updatable fields
         for field in [
@@ -212,9 +207,7 @@ class DAL:
     def create_transaction(
         self, book_id: str, transaction_date, transaction_description: str
     ) -> Transaction:
-        new_id = uuid.uuid4()
         txn = Transaction(
-            id=new_id,
             book_id=book_id,
             transaction_date=transaction_date,
             transaction_description=transaction_description,
@@ -308,9 +301,7 @@ class DAL:
         memo: str = None,
         reconcile_state: str = 'n',
     ) -> Split:
-        new_id = uuid.uuid4()
         spl = Split(
-            id=new_id,
             transaction_id=transaction_id,
             account_id=account_id,
             amount=amount,

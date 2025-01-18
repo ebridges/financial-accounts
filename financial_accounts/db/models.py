@@ -1,5 +1,5 @@
 # models.py (excerpt)
-import uuid
+from uuid import uuid4, UUID
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from enum import Enum
@@ -41,8 +41,8 @@ class GUID(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        if not isinstance(value, uuid.UUID):
-            value = uuid.UUID(value)
+        if not isinstance(value, UUID):
+            value = UUID(value)
         if dialect.name == 'postgresql':
             return value
         else:
@@ -51,7 +51,11 @@ class GUID(TypeDecorator):
     def process_result_value(self, value, dialect):
         if value is None:
             return None
-        return uuid.UUID(value)
+        return UUID(value)
+
+
+def uuid():
+    return str(uuid4())
 
 
 class AccountTypeEnum(str, Enum):
@@ -65,7 +69,7 @@ class AccountTypeEnum(str, Enum):
 
 class Book(Base, UpdatedAtMixin):
     __tablename__ = 'book'
-    id = Column(GUID(), primary_key=True)
+    id = Column(GUID(), default=uuid, primary_key=True)
     name = Column(String(100), nullable=False, unique=True)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
@@ -75,7 +79,7 @@ class Book(Base, UpdatedAtMixin):
 
 class Account(Base, UpdatedAtMixin):
     __tablename__ = 'account'
-    id = Column(GUID(), primary_key=True)
+    id = Column(GUID(), default=uuid, primary_key=True)
     book_id = Column(
         GUID(), ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
     )
@@ -103,7 +107,7 @@ class Account(Base, UpdatedAtMixin):
 
 class Transaction(Base, UpdatedAtMixin):
     __tablename__ = 'transactions'
-    id = Column(GUID(), primary_key=True)
+    id = Column(GUID(), default=uuid, primary_key=True)
     book_id = Column(
         GUID(), ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
     )
@@ -121,7 +125,7 @@ class Transaction(Base, UpdatedAtMixin):
 
 class Split(Base, UpdatedAtMixin):
     __tablename__ = 'split'
-    id = Column(GUID(), primary_key=True)
+    id = Column(GUID(), default=uuid, primary_key=True)
     transaction_id = Column(
         GUID(),
         ForeignKey('transactions.id', ondelete="CASCADE", onupdate="RESTRICT"),
