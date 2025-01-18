@@ -65,6 +65,7 @@ class Qif:
             transaction.book_id = book_id
             txn_date = datetime.strptime(txn.get(TxnDate), "%m/%d/%Y").date()
             transaction.transaction_date = txn_date
+            transaction.transaction_description = txn.get(TxnPayee)
 
             transaction.splits = []
             split = Split()
