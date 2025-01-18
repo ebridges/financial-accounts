@@ -60,7 +60,7 @@ class TransactionService(BaseService):
         accounts_to_match_for=None,
     ) -> List[Transaction]:
         return self.data_access.get_transactions_in_range(
-            start_date, end_date, recon_status, match_status, accounts_to_match_for
+            book_id, start_date, end_date, recon_status, match_status, accounts_to_match_for
         )
 
     def mark_transaction_matched(self, transaction_id) -> None:

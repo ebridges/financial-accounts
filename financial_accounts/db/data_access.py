@@ -230,7 +230,13 @@ class DAL:
         return self.session.query(Transaction).filter_by(book_id=book_id).all()
 
     def get_transactions_in_range(
-        self, start_date, end_date, recon_status=None, match_status=None, accounts_to_match_for=None
+        self,
+        book_id,
+        start_date,
+        end_date,
+        recon_status=None,
+        match_status=None,
+        accounts_to_match_for=None,
     ) -> List[Transaction]:
         """
         Queries transactions by a date range, with optional filtering by reconcile_state and match status
@@ -246,6 +252,7 @@ class DAL:
             and_(
                 Transaction.transaction_date >= start_date,
                 Transaction.transaction_date <= end_date,
+                Transaction.book_id == book_id,
             )
         )
 
