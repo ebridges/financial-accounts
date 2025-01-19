@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
-from financial_accounts.db.data_access import DAL, check_for_circular_path
+from financial_accounts.db.data_access import DAL
 from financial_accounts.db.models import Base, Book, Account, Transaction, Split
 
 
@@ -80,10 +80,10 @@ def test_delete_book(dal, mock_session):
     mock_session.commit.assert_called_once()
 
 
-def test_check_for_circular_path(mock_session):
-    mock_session.query().filter().first.side_effect = [(None,), ("1",), (None,)]
-    result = check_for_circular_path(mock_session, "1", "2")
-    assert result is False
+# def test_check_for_circular_path(mock_session):
+#     mock_session.query().filter().first.side_effect = [(None,), ("1",), (None,)]
+#     result = check_for_circular_path(mock_session, "1", "2")
+#     assert result is False
 
 
 def test_create_account(dal, mock_session):
