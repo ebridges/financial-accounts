@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     CheckConstraint,
     UniqueConstraint,
+    Integer,
     text,
 )
 from sqlalchemy.orm import declarative_base, relationship
@@ -24,39 +25,39 @@ from financial_accounts.db.updated_mixin import UpdatedAtMixin
 Base = declarative_base()
 
 
-class GUID(TypeDecorator):
-    """Platform-independent GUID type.
-    When used with PostgreSQL, uses native UUID.
-    Otherwise, stores as String(36).
-    """
+# class GUID(TypeDecorator):
+#     """Platform-independent GUID type.
+#     When used with PostgreSQL, uses native UUID.
+#     Otherwise, stores as String(36).
+#     """
 
-    impl = String(36)
-    cache_ok = True
+#     impl = String(36)
+#     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
-            return dialect.type_descriptor(PG_UUID())
-        else:
-            return dialect.type_descriptor(String(36))
+#     def load_dialect_impl(self, dialect):
+#         if dialect.name == 'postgresql':
+#             return dialect.type_descriptor(PG_UUID())
+#         else:
+#             return dialect.type_descriptor(String(36))
 
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return None
-        if not isinstance(value, UUID):
-            value = UUID(value)
-        if dialect.name == 'postgresql':
-            return value
-        else:
-            return str(value)
+#     def process_bind_param(self, value, dialect):
+#         if value is None:
+#             return None
+#         if not isinstance(value, UUID):
+#             value = UUID(value)
+#         if dialect.name == 'postgresql':
+#             return value
+#         else:
+#             return str(value)
 
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return None
-        return UUID(value)
+#     def process_result_value(self, value, dialect):
+#         if value is None:
+#             return None
+#         return UUID(value)
 
 
-def uuid():
-    return str(uuid4())
+# def uuid():
+#     return str(uuid4())
 
 
 class AccountTypeEnum(str, Enum):
@@ -70,7 +71,7 @@ class AccountTypeEnum(str, Enum):
 
 class Book(Base, UpdatedAtMixin):
     __tablename__ = 'book'
-    id = Column(GUID(), default=uuid, primary_key=True)
+    id = Column(Integer, autoincrement=True, primary_key=True)
     name = Column(String(100), nullable=False, unique=True)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
 
@@ -80,12 +81,12 @@ class Book(Base, UpdatedAtMixin):
 
 class Account(Base, UpdatedAtMixin):
     __tablename__ = 'account'
-    id = Column(GUID(), default=uuid, primary_key=True)
+    id = Column(Integer, autoincrement=True, primary_key=True)
     book_id = Column(
-        GUID(), ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+        Integer, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
     )
     parent_account_id = Column(
-        GUID(), ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT")
+        Integer, ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT")
     )
     code = Column(String(50), nullable=False)
     name = Column(String(100), nullable=False)
@@ -108,9 +109,9 @@ class Account(Base, UpdatedAtMixin):
 
 class Transaction(Base, UpdatedAtMixin):
     __tablename__ = 'transactions'
-    id = Column(GUID(), default=uuid, primary_key=True)
+    id = Column(Integer, autoincrement=True, primary_key=True)
     book_id = Column(
-        GUID(), ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+        Integer, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
     )
     transaction_date = Column(Date, nullable=False)
     entry_date = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
@@ -126,14 +127,14 @@ class Transaction(Base, UpdatedAtMixin):
 
 class Split(Base, UpdatedAtMixin):
     __tablename__ = 'split'
-    id = Column(GUID(), default=uuid, primary_key=True)
+    id = Column(Integer, autoincrement=True, primary_key=True)
     transaction_id = Column(
-        GUID(),
+        Integer,
         ForeignKey('transactions.id', ondelete="CASCADE", onupdate="RESTRICT"),
         nullable=False,
     )
     account_id = Column(
-        GUID(), ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+        Integer, ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
     )
     amount = Column(DECIMAL(20, 4), nullable=False)  # negative for credits, positive for debits
     memo = Column(Text)
