@@ -6,7 +6,7 @@ from logging import info
 
 from financial_accounts.business.base_service import BaseService
 from financial_accounts.business.transaction_service import TransactionService
-from financial_accounts.db.models import Transaction
+from financial_accounts.db.models import Transaction, Account
 
 DEFAULT_DATE_OFFSET = 0
 
@@ -121,23 +121,43 @@ class MatchingService(BaseService):
                 grouped[account_name].append(candidate)
         return grouped
 
-    def _is_match(self, imported_txn: Transaction, candidate: Transaction, rules: Dict) -> bool:
+    @staticmethod
+    def compare_splits(imported: Transaction, candidate: Transaction) -> Account | None:
+        """
+        Compare the splits between these two transactions. If a split in the candidate matches
+        a split in the transaction being imported (based on the `account_id` and the `amount` of the splits),
+        return the account of the _other split_ in the candidate.
+
+        Args:
+            imported (Transaction): The transaction being imported.
+            candidate (Transaction): The transaction to compare against.
+
+        Returns:
+            str | None: The `account` of the _other split_ in the candidate if a match is found, otherwise None.
+        """
+        for imported_split in imported.splits:
+            for candidate_split in candidate.splits:
+                # Check for a match on account_id and amount
+                if (
+                    imported_split.account_id == candidate_split.account_id
+                    and imported_split.amount == candidate_split.amount
+                ):
+                    # Find the _other split_ in the candidate transaction
+                    for other_candidate_split in candidate.splits:
+                        if other_candidate_split.id != candidate_split.id:
+                            return other_candidate_split.account
+
+        return None
+
+    def _is_match(self, imported: Transaction, candidate: Transaction, rules: Dict) -> bool:
         """Check if an imported transaction matches a candidate."""
-        # Match amounts (negated) by iterating over all splits
-        match_found = False
-        for split in candidate.splits:
-            if any(
-                imported_split.account_id == split.account_id
-                and abs(imported_split.amount) - abs(split.amount) == 0
-                for imported_split in imported_txn.splits
-            ):
-                match_found = True
-                break
-        if not match_found:
+
+        matched = MatchingService.compare_splits(imported, candidate)
+        if not matched:
             return False
 
         # Match description
-        patterns = rules.get("description_patterns", [])
+        patterns = rules.get(matched.name).get("description_patterns", [])
         if patterns:
             description = candidate.transaction_description
             for pattern in patterns:
@@ -147,8 +167,8 @@ class MatchingService(BaseService):
                 return False
 
         # Match date range
-        date_offset = rules.get("date_offset", DEFAULT_DATE_OFFSET)
-        date_diff = abs((imported_txn.transaction_date - candidate.transaction_date).days)
+        date_offset = rules.get(matched.name).get("date_offset", DEFAULT_DATE_OFFSET)
+        date_diff = abs((imported.transaction_date - candidate.transaction_date).days)
         if date_diff > date_offset:
             return False
 
