@@ -1,5 +1,6 @@
 # from typing import List
 from datetime import datetime
+from decimal import Decimal
 from collections import OrderedDict
 from financial_accounts.db.models import Transaction, Split
 
@@ -14,6 +15,8 @@ TxnPayee = 'P'
 TxnAmount = 'T'
 TxnCategory = 'L'
 RecordEnd = '^'
+
+NEG_ONE = Decimal("-1")
 
 
 class Qif:
@@ -67,18 +70,18 @@ class Qif:
             transaction.transaction_date = txn_date
             transaction.transaction_description = txn.get(TxnPayee)
 
+            txn_amount = Decimal(txn.get(TxnAmount).strip())
+
             transaction.splits = []
             split = Split()
             split.transaction = transaction
             split.account = account_service.lookup_account_by_name(book_id, from_account)
-            split.amount = txn.get(TxnAmount)
-            transaction.splits.append(split)
+            split.amount = txn_amount
 
             split = Split()
             split.transaction = transaction
             split.account = account_service.lookup_account_by_name(book_id, txn.get(TxnCategory))
-            split.amount = txn.get(TxnAmount) * -1
-            transaction.splits.append(split)
+            split.amount = txn_amount * NEG_ONE
 
             transactions.append(transaction)
         return transactions
