@@ -1,4 +1,5 @@
 # data_access.py
+from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy.orm import joinedload
@@ -222,14 +223,15 @@ class DAL:
     def list_transactions_for_book(self, book_id: str) -> List[Transaction]:
         return self.session.query(Transaction).filter_by(book_id=book_id).all()
 
+    # @todo deprecated, remove
     def get_transactions_in_range(
         self,
         book_id,
         start_date,
         end_date,
-        recon_status=None,
-        match_status=None,
-        accounts_to_match_for=None,
+        recon_status: str = None,
+        match_status: str = None,
+        accounts_to_match_for: List[str] = [],
     ) -> List[Transaction]:
         """
         Queries transactions by a date range, with optional filtering by reconcile_state and match status
@@ -249,7 +251,7 @@ class DAL:
             )
         )
 
-        if accounts_to_match_for is not None:
+        if len(accounts_to_match_for) > 0:
             query = query.join(Transaction.splits).filter(
                 Split.account.full_name in accounts_to_match_for
             )
@@ -266,6 +268,31 @@ class DAL:
         query = query.options(joinedload(Transaction.splits))
 
         return query.all()
+
+    def query_for_unmatched_transactions_in_range(
+        self,
+        book_id: int,
+        start_date: datetime.date,
+        end_date: datetime.date,
+        accounts_to_match_for: List[str],
+    ):
+        transactions = (
+            self.session.query(Transaction)
+            .join(Split)
+            .join(Account)
+            .filter(
+                and_(
+                    Transaction.book_id == book_id,
+                    Transaction.transaction_date >= start_date,
+                    Transaction.transaction_date <= end_date,
+                    Transaction.match_status == "n",
+                    Account.name.in_(accounts_to_match_for),
+                )
+            )
+            .options(joinedload(Transaction.splits).joinedload(Split.account))
+            .all()
+        )
+        return transactions
 
     def update_transaction(self, txn_id: str, **kwargs) -> Optional[Transaction]:
         txn = self.session.query(Transaction).filter_by(id=txn_id).one_or_none()

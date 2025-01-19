@@ -68,12 +68,10 @@ class MatchingService(BaseService):
         max_date += timedelta(days=buffer_days)
 
         # Query candidates from the TransactionService
-        c = self.transaction_service.get_transactions_in_range(
+        c = self.transaction_service.query_matchable_transactions(
             book_id=book_id,
             start_date=min_date,
             end_date=max_date,
-            recon_status=None,  # Only unreconciled transactions
-            match_status=None,  # Only unmatched transactions
             accounts_to_match_for=matching_accounts,
         )
 

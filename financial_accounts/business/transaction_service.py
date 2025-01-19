@@ -44,20 +44,35 @@ class TransactionService(BaseService):
 
         return txn.id
 
+    def query_matchable_transactions(
+        self,
+        book_id: int,
+        start_date: datetime.date,
+        end_date: datetime.date,
+        accounts_to_match_for: List[str] = [],
+    ):
+        return self.data_access.query_for_unmatched_transactions_in_range(
+            book_id, start_date, end_date, accounts_to_match_for
+        )
+
     def delete_transaction(self, transaction_id):
         txn = self.data_access.get_transaction(txn_id=transaction_id)
         if not txn:
             raise ValueError(f'No transaction exists with ID: {transaction_id}')
         return self.data_access.delete_transaction(txn_id=transaction_id)
 
+    def mark_transaction_matched(self, transaction) -> None:
+        self.data_access.update_transaction_match_status(transaction)
+
+    # @todo deprecated, remove
     def get_transactions_in_range(
         self,
         book_id,
         start_date,
         end_date,
-        recon_status=None,
-        match_status=None,
-        accounts_to_match_for=None,
+        recon_status: str = None,
+        match_status: str = None,
+        accounts_to_match_for: List[str] = [],
     ) -> List[Transaction]:
         return self.data_access.get_transactions_in_range(
             book_id, start_date, end_date, recon_status, match_status, accounts_to_match_for
