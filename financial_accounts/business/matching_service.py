@@ -115,10 +115,10 @@ class MatchingService(BaseService):
         grouped = {}
         for candidate in candidates:
             for split in candidate.splits:
-                account_id = split.account_id
-                if account_id not in grouped:
-                    grouped[account_id] = []
-                grouped[account_id].append(candidate)
+                account_name = split.account.name
+                if account_name not in grouped:
+                    grouped[account_name] = []
+                grouped[account_name].append(candidate)
         return grouped
 
     def _is_match(self, imported_txn: Transaction, candidate: Transaction, rules: Dict) -> bool:
