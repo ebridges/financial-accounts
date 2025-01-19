@@ -10,7 +10,7 @@ class TransactionService(BaseService):
     def insert_bulk(self, txns: List[Transaction]):
         self.data_access.insert_transactions(txns)
 
-    def insert(self, txn: Transaction):
+    def insert_transaction(self, txn: Transaction):
         return self.data_access.insert_transaction(txn)
 
     def enter_transaction(self, book_name, txn_date, txn_desc, to_acct, from_acct, amount):
