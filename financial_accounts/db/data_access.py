@@ -194,9 +194,9 @@ class DAL:
             raise e
         return txn.id
 
-    def update_transaction_match_status(self, transaction_id, match_status='m') -> None:
+    def update_transaction_match_status(self, transaction, match_status='m') -> None:
         try:
-            self.session.query(Transaction).filter_by(id=transaction_id).update(
+            self.session.query(Transaction).filter_by(id=transaction.id).update(
                 {"match_status": match_status}
             )
             self.session.commit()

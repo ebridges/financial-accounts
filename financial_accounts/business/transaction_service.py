@@ -63,5 +63,5 @@ class TransactionService(BaseService):
             book_id, start_date, end_date, recon_status, match_status, accounts_to_match_for
         )
 
-    def mark_transaction_matched(self, transaction_id) -> None:
-        self.data_access.update_transaction_match_status(transaction_id)
+    def get_all_transactions_for_book(self, book_id):
+        return self.data_access.list_transactions_for_book(book_id=book_id)

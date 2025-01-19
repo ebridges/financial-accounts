@@ -158,7 +158,7 @@ class MatchingService(BaseService):
 
     def _mark_matched(self, txn: Transaction):
         """Update transaction to mark it as matched using TransactionService."""
-        self.transaction_service.update_transaction(transaction_id=txn.id, matched_status="m")
+        self.transaction_service.mark_transaction_matched(txn)
 
     def _add_transaction_to_ledger(self, txn: Transaction):
         """Add a new transaction to the ledger using TransactionService."""
