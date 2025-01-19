@@ -312,9 +312,6 @@ class DAL:
         self.session.commit()
         return spl
 
-    def get_split(self, split_id: str) -> Optional[Split]:
-        return self.session.query(Split).filter_by(id=split_id).one_or_none()
-
     def update_split(self, split_id: str, **kwargs) -> Optional[Split]:
         spl = self.session.query(Split).filter_by(id=split_id).one_or_none()
         if not spl:

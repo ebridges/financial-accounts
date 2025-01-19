@@ -178,13 +178,6 @@ def test_create_split(dal, mock_session):
     mock_session.commit.assert_called_once()
 
 
-def test_get_split(dal, mock_session):
-    mock_session.query().filter_by().one_or_none.return_value = Split(id="1", memo="Test Split")
-
-    split = dal.get_split("1")
-    assert split.memo == "Test Split"
-
-
 def test_list_splits_for_transaction(dal, mock_session):
     mock_session.query().filter_by().all.return_value = [Split(id="1", memo="Test Split")]
 
