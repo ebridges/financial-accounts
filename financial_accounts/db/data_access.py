@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy.orm import joinedload
-from sqlalchemy import and_
+from sqlalchemy import and_, text
 
 from financial_accounts.db.models import Book, Account, Transaction, Split
 
@@ -371,3 +371,49 @@ class DAL:
 
     def list_splits_for_account(self, account_id: str) -> List[Split]:
         return self.session.query(Split).filter_by(account_id=account_id).all()
+
+    # --------------------------------------------------------------------------
+    # Management
+    # --------------------------------------------------------------------------
+    def list_account_hierarchy(self):
+        # Step 1: Run a recursive CTE query to get each account, its parent, and depth
+        recursive_cte_query = text(
+            """
+            WITH RECURSIVE account_hierarchy AS (
+                -- Anchor: all root accounts (no parent)
+                SELECT
+                    id,
+                    parent_account_id,
+                    code,
+                    name,
+                    0 AS depth
+                FROM account
+                WHERE parent_account_id IS NULL
+
+                UNION ALL
+
+                -- Recursive: join children to their parent in this CTE
+                SELECT
+                    c.id,
+                    c.parent_account_id,
+                    c.code,
+                    c.name,
+                    ah.depth + 1 AS depth
+                FROM account c
+                JOIN account_hierarchy ah
+                ON c.parent_account_id = ah.id
+            )
+            SELECT
+                id,
+                parent_account_id,
+                code,
+                name,
+                depth
+            FROM account_hierarchy
+            -- You can choose your own ORDER BY column(s)
+            ORDER BY code
+        """
+        )
+
+        result = self.session.execute(recursive_cte_query)
+        return result.fetchall()
