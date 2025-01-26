@@ -207,7 +207,7 @@ def d(date_str):
     return datetime.strptime(date_str, '%Y-%m-%d').date()
 
 
-def test_get_transactions_in_range(mem_dal):
+def test_query_for_unmatched_transactions_in_range(mem_dal):
     book = mem_dal.create_book("Test Book")
 
     account = mem_dal.create_account(
@@ -241,16 +241,27 @@ def test_get_transactions_in_range(mem_dal):
     )
 
     # Test date range filtering
-    transactions = mem_dal.get_transactions_in_range(date(2023, 10, 1), date(2023, 10, 5))
+    transactions = mem_dal.query_for_unmatched_transactions_in_range(
+        book_id=book.id,
+        start_date=date(2023, 10, 1),
+        end_date=date(2023, 10, 5),
+        accounts_to_match_for=[account.name],
+    )
+    # transactions = mem_dal.get_transactions_in_range(date(2023, 10, 1), date(2023, 10, 5))
     assert len(transactions) == 3
     assert transactions[0].transaction_description == "Transaction 1"
     assert transactions[1].transaction_description == "Transaction 2"
     assert transactions[2].transaction_description == "Transaction 3"
 
     # Test date range with reconciliation status filtering
-    transactions_with_recon = mem_dal.get_transactions_in_range(
-        date(2023, 10, 1), date(2023, 10, 10), recon_status='c'
+    transactions_with_recon = mem_dal.query_for_unmatched_transactions_in_range(
+        book_id=book.id,
+        start_date=date(2023, 10, 1),
+        end_date=date(2023, 10, 10),
+        accounts_to_match_for=[account.name],
+        reconciliation_status='c',
     )
+
     assert len(transactions_with_recon) == 2
     assert transactions_with_recon[0].transaction_description == "Transaction 2"
     assert transactions_with_recon[1].transaction_description == "Transaction 3"

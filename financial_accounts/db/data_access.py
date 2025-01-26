@@ -275,8 +275,9 @@ class DAL:
         start_date: datetime.date,
         end_date: datetime.date,
         accounts_to_match_for: List[str],
+        reconciliation_status: Optional[str] = None,
     ):
-        transactions = (
+        query = (
             self.session.query(Transaction)
             .join(Split)
             .join(Account)
@@ -290,9 +291,12 @@ class DAL:
                 )
             )
             .options(joinedload(Transaction.splits).joinedload(Split.account))
-            .all()
         )
-        return transactions
+
+        if reconciliation_status:
+            query = query.filter(Split.reconcile_state == reconciliation_status)
+
+        return query.all()
 
     def update_transaction(self, txn_id: str, **kwargs) -> Optional[Transaction]:
         txn = self.session.query(Transaction).filter_by(id=txn_id).one_or_none()
