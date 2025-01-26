@@ -1,7 +1,4 @@
 # models.py (excerpt)
-from uuid import uuid4, UUID
-from sqlalchemy.types import TypeDecorator
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from enum import Enum
 
 from sqlalchemy import (
@@ -25,6 +22,10 @@ from financial_accounts.db.updated_mixin import UpdatedAtMixin
 Base = declarative_base()
 
 
+# from uuid import uuid4, UUID
+# from sqlalchemy.types import TypeDecorator
+# from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+#
 # class GUID(TypeDecorator):
 #     """Platform-independent GUID type.
 #     When used with PostgreSQL, uses native UUID.
