@@ -64,19 +64,5 @@ class TransactionService(BaseService):
     def mark_transaction_matched(self, transaction) -> None:
         self.data_access.update_transaction_match_status(transaction)
 
-    # @todo deprecated, remove
-    def get_transactions_in_range(
-        self,
-        book_id,
-        start_date,
-        end_date,
-        recon_status: str = None,
-        match_status: str = None,
-        accounts_to_match_for: List[str] = [],
-    ) -> List[Transaction]:
-        return self.data_access.get_transactions_in_range(
-            book_id, start_date, end_date, recon_status, match_status, accounts_to_match_for
-        )
-
     def get_all_transactions_for_book(self, book_id):
         return self.data_access.list_transactions_for_book(book_id=book_id)

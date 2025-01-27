@@ -223,52 +223,6 @@ class DAL:
     def list_transactions_for_book(self, book_id: str) -> List[Transaction]:
         return self.session.query(Transaction).filter_by(book_id=book_id).all()
 
-    # @todo deprecated, remove
-    def get_transactions_in_range(
-        self,
-        book_id,
-        start_date,
-        end_date,
-        recon_status: str = None,
-        match_status: str = None,
-        accounts_to_match_for: List[str] = [],
-    ) -> List[Transaction]:
-        """
-        Queries transactions by a date range, with optional filtering by reconcile_state and match status
-
-        :param start_date: The start of the transaction_date range (inclusive).
-        :param end_date: The end of the transaction_date range (inclusive).
-        :param recon_status: Optional filter for the reconcile_state field in related Splits.
-        :param match_status: Optional filter for the reconcile_state field in related Splits.
-        :return: List of Transaction objects.
-        """
-        # Base query filtering by transaction_date
-        query = self.session.query(Transaction).filter(
-            and_(
-                Transaction.transaction_date >= start_date,
-                Transaction.transaction_date <= end_date,
-                Transaction.book_id == book_id,
-            )
-        )
-
-        if len(accounts_to_match_for) > 0:
-            query = query.join(Transaction.splits).filter(
-                Split.account.full_name in accounts_to_match_for
-            )
-
-        # If recon_status is provided, add a join and filter
-        if recon_status is not None:
-            query = query.join(Transaction.splits).filter(Split.reconcile_state == recon_status)
-
-        # If recon_status is provided, add a join and filter
-        if match_status is not None:
-            query = query.filter(Transaction.match_status == match_status)
-
-        # Optionally load splits eagerly to minimize lazy-loading during access
-        query = query.options(joinedload(Transaction.splits))
-
-        return query.all()
-
     def query_for_unmatched_transactions_in_range(
         self,
         book_id: int,

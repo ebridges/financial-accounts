@@ -142,12 +142,10 @@ def test_batch_query_candidates(matching_service):
     )
 
     # Verify the method was called with the correct date range and accounts
-    matching_service.transaction_service.get_transactions_in_range.assert_called_once_with(
+    matching_service.transaction_service.query_matchable_transactions.assert_called_once_with(
         book_id="book_id",
         start_date=date(2025, 1, 8),  # 2 days before the earliest transaction
         end_date=date(2025, 1, 17),  # 2 days after the latest transaction
-        recon_status=None,
-        match_status=None,
         accounts_to_match_for=matching_accounts,
     )
 

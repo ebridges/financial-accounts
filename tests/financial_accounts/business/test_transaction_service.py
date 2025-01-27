@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from financial_accounts.business.transaction_service import TransactionService
+from financial_accounts.db.models import Transaction
 
 
 @pytest.fixture
@@ -30,18 +31,18 @@ def test_enter_transaction(transaction_service):
 
 
 def test_delete_transaction(transaction_service):
+    transaction_service.data_access.get_transaction.return_value = Transaction(id=1)
     transaction_service.data_access.delete_transaction.return_value = True
 
     result = transaction_service.delete_transaction(transaction_id=1)
     assert result is True
-    transaction_service.data_access.get_transactions_in_range.return_value = [
-        MagicMock(id=1),
-        MagicMock(id=2),
-    ]
 
-    transactions = transaction_service.get_transactions_in_range(
-        book_id=1, start_date="2023-01-01", end_date="2023-12-31"
-    )
-    assert len(transactions) == 2
-    assert transactions[0].id == 1
-    assert transactions[1].id == 2
+
+def test_delete_transaction_fail(transaction_service):
+    transaction_service.data_access.get_transaction.return_value = None
+    transaction_service.data_access.delete_transaction.return_value = False
+
+    result = None
+    with pytest.raises(ValueError):
+        result = transaction_service.delete_transaction(transaction_id=1)
+    assert result is None
