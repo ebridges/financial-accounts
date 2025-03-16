@@ -1,240 +1,451 @@
 import pytest
-import tempfile
-import json
-import os
-from datetime import date
-from unittest.mock import MagicMock
-
-from financial_accounts.business.matching_service import MatchingService
-from financial_accounts.db.models import Transaction, Split
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
+from financial_accounts.business.matching_service import (
+    DEFAULT_DATE_OFFSET,
+    MatchingService,
+    MatchingRules,
+)
+from financial_accounts.db.models import Account, Transaction, Split
 
 
 @pytest.fixture
-def matching_config():
-    config = {
-        "global_defaults": {"date_offset": 2, "description_patterns": []},
-        "accounts": [
-            {
-                "account": "my-checking-account",
-                "corresponding_accounts": {
-                    "my-creditcard-account": {
-                        "date_offset": 1,
-                        "description_patterns": [
-                            "^CREDIT CRD AUTOPAY\\s+PPD ID: \\d{10}$",
-                            "^Payment to Credit card ending in \\d{4} \\d{2}/\\d{2}$",
-                        ],
-                    }
-                },
-            }
-        ],
-        "fallback": {"date_offset": 2, "description_patterns": []},
+def mock_matching_rules_data():
+    """Mock configuration data similar to the example in the class docstring."""
+    return {
+        "matching_rules": {
+            "checking-chase-personal-1381": {
+                "creditcard-chase-personal-6063": {
+                    "date_offset": 1,
+                    "description_patterns": [
+                        "^AUTOMATIC PAYMENT - THANK(?: YOU)?$",
+                        "^Payment Thank You\\s?-\\s?(Web|Mobile)$",
+                    ],
+                }
+            },
+            "creditcard-chase-personal-6063": {
+                "checking-chase-personal-1381": {
+                    "date_offset": 3,
+                    "description_patterns": [
+                        "^CHASE CREDIT CRD AUTOPAY\\s*(?:\\d+)?\\s*PPD ID:\\s*\\d+$"
+                    ],
+                }
+            },
+        }
     }
-    with tempfile.NamedTemporaryFile('w', delete=False) as temp_file:
-        json.dump(config, temp_file)
-        temp_file_path = temp_file.name
-    yield temp_file_path
-    # Cleanup
-    try:
-        os.remove(temp_file_path)
-    except OSError:
-        pass
 
 
 @pytest.fixture
-def matching_service(matching_config):
-    mock_transaction_service = MagicMock()
-    return MatchingService(
-        config_path=matching_config, transaction_service=mock_transaction_service
+def mock_matching_rules_from_config(mock_matching_rules_data):
+    """Creates a MatchingRules instance with mocked rules data instead of reading a file."""
+    with patch("builtins.open"), patch("json.load", return_value=mock_matching_rules_data):
+        return MatchingRules("blah blah blah")  # Path is irrelevant due to patching
+
+
+@pytest.fixture
+def mock_account():
+    """Creates a mock Account object."""
+
+    # book_id, code, name, full_name, description ...
+    def _mock_account(account_id):
+        account = MagicMock(spec=Account)
+        account.id = account_id
+        return account
+
+    return _mock_account
+
+
+@pytest.fixture
+def mock_transaction():
+    """Creates a mock Transaction object with two splits."""
+
+    default_date = '1900-01-01'
+    default_description = 'mock description'
+    default_splits = []
+
+    def _mock_transaction(
+        date: str = default_date,
+        description: str = default_description,
+        splits: list = default_splits,
+    ):
+        transaction = MagicMock(spec=Transaction)
+        transaction.transaction_date = datetime.fromisoformat(date)
+        transaction.transaction_description = description
+        transaction.splits = splits
+        return transaction
+
+    return _mock_transaction
+
+
+@pytest.fixture
+def mock_split():
+    """Creates a mock Split object."""
+
+    def _mock_split(account_id, amount):
+        split = MagicMock(spec=Split)
+        split.account_id = account_id
+        split.amount = amount
+        return split
+
+    return _mock_split
+
+
+@pytest.fixture
+def mock_matching_rules():
+    """Creates a mock MatchingRules object with predefined behaviors."""
+
+    default_patterns = [r"Payment \d+", r"Invoice \d+"]
+    default_offset = 5
+
+    mock_rules = MagicMock(spec=MatchingRules)
+    mock_rules.matching_patterns.return_value = default_patterns
+    mock_rules.matching_date_offset.return_value = default_offset
+
+    return mock_rules
+
+
+@pytest.fixture
+def mock_transaction_service():
+    """Creates a mock TransactionService instance."""
+    transaction_service = MagicMock()
+    transaction_service.query_matchable_transactions.return_value = {"mock_result": []}
+    return transaction_service
+
+
+@pytest.fixture
+def matching_service(mock_matching_rules, mock_transaction_service):
+    """Creates an instance of MatchingService with mocked rules."""
+    service = MatchingService(
+        matching_rules=mock_matching_rules, transaction_service=mock_transaction_service
+    )
+    return service
+
+
+@patch(
+    "financial_accounts.business.matching_service.MatchingService.compare_splits", return_value=True
+)
+def test_is_match_success(
+    mock_compare_splits, matching_service, mock_account, mock_transaction, mock_split
+):
+    """Test when transactions match successfully."""
+    import_for = mock_account(1)
+    txn_import = mock_transaction(
+        "2024-03-10", "Payment 12345", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    txn_candidate = mock_transaction(
+        "2024-03-08", "Payment 12345", [mock_split(1, 100), mock_split(2, -100)]
     )
 
+    txn_import.corresponding_account.return_value = mock_account(2)
 
-def test_is_match(matching_service):
-    # Create mock transactions
-    imported_txn = Transaction(
-        transaction_date=date(2025, 1, 10),
-        splits=[Split(account_id="acct1", amount=100), Split(account_id="acct2", amount=-100)],
+    result = matching_service.is_match(import_for, txn_import, txn_candidate)
+    assert result is True, "Expected True when all conditions match"
+
+
+@patch(
+    "financial_accounts.business.matching_service.MatchingService.compare_splits",
+    return_value=False,
+)
+def test_is_match_fails_on_splits(
+    mock_compare_splits, matching_service, mock_account, mock_transaction, mock_split
+):
+    """Test when transactions fail due to split mismatch."""
+    import_for = mock_account(1)
+    txn_import = mock_transaction(
+        "2024-03-10", "Payment 12345", [mock_split(1, 100), mock_split(2, -100)]
     )
-    candidate_txn = Transaction(
-        transaction_date=date(2025, 1, 9),
-        transaction_description="Payment Thank You - Web",
-        splits=[Split(account_id="acct1", amount=-100), Split(account_id="acct2", amount=100)],
-    )
-
-    # Define rules
-    rules = {"description_patterns": ["^Payment Thank You - (Web|Mobile)$"], "date_offset": 2}
-
-    # Test matching
-    result = matching_service._is_match(imported_txn, candidate_txn, rules)
-    assert result
-
-
-def test_group_candidates_by_account(matching_service):
-    # Create mock transactions
-    txn1 = Transaction(
-        splits=[Split(account_id="acct1", amount=100), Split(account_id="acct2", amount=-100)]
-    )
-    txn2 = Transaction(
-        splits=[Split(account_id="acct1", amount=200), Split(account_id="acct3", amount=-200)]
-    )
-    txn3 = Transaction(
-        splits=[Split(account_id="acct2", amount=300), Split(account_id="acct3", amount=-300)]
+    txn_candidate = mock_transaction(
+        "2024-03-08", "Payment 12345", [mock_split(1, 200), mock_split(2, -200)]
     )
 
-    # Group transactions by account
-    candidates = [txn1, txn2, txn3]
-    grouped = matching_service._group_candidates_by_account(candidates)
-
-    # Verify the grouping
-    assert len(grouped) == 3
-    assert len(grouped["acct1"]) == 2
-    assert len(grouped["acct2"]) == 2
-    assert len(grouped["acct3"]) == 2
-    assert txn1 in grouped["acct1"]
-    assert txn2 in grouped["acct1"]
-    assert txn1 in grouped["acct2"]
-    assert txn3 in grouped["acct2"]
-    assert txn2 in grouped["acct3"]
-    assert txn3 in grouped["acct3"]
+    result = matching_service.is_match(import_for, txn_import, txn_candidate)
+    assert result is False, "Expected False when splits do not match"
 
 
-def test_get_account_rules(matching_service):
-    # Test with an account that has specific rules
-    account_with_rules = "my-checking-account"
-    rules = matching_service._get_account_rules(account_with_rules)
+def test_is_match_fails_on_description(
+    matching_service, mock_account, mock_transaction, mock_split
+):
+    """Test when description does not match any pattern."""
+    import_for = mock_account(1)
+    txn_import = mock_transaction(
+        "2024-03-10", "Payment 12345", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    txn_candidate = mock_transaction(
+        "2024-03-08", "Random Text", [mock_split(1, 100), mock_split(2, -100)]
+    )
 
-    # Assert the result is a dictionary
-    assert isinstance(rules, dict)
-
-    # Assert that the rules contain specific corresponding accounts
-    assert "my-creditcard-account" in rules
-    assert rules["my-creditcard-account"]["date_offset"] == 1
-    assert isinstance(rules["my-creditcard-account"]["description_patterns"], list)
-
-    # Test with an account that does not have specific rules
-    account_without_rules = "nonexistent-account"
-    rules = matching_service._get_account_rules(account_without_rules)
-
-    # Assert the result is an empty dictionary for non-existent accounts
-    assert isinstance(rules, dict)
-    assert len(rules) == 0
+    result = matching_service.is_match(import_for, txn_import, txn_candidate)
+    assert result is False, "Expected False when description does not match any pattern"
 
 
-def test_batch_query_candidates(matching_service):
-    # Mock imported transactions
+def test_is_match_fails_on_date_range(matching_service, mock_account, mock_transaction, mock_split):
+    """Test when transaction date difference exceeds allowed offset."""
+    import_for = mock_account(1)
+    txn_import = mock_transaction(
+        "2024-03-10", "Payment 12345", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    txn_candidate = mock_transaction(
+        "2024-03-01", "Payment 12345", [mock_split(1, 100), mock_split(2, -100)]
+    )  # 9 days apart
+
+    result = matching_service.is_match(import_for, txn_import, txn_candidate)
+    assert result is False, "Expected False when date difference exceeds offset"
+
+
+def test_is_match_success_with_regex(matching_service, mock_account, mock_transaction, mock_split):
+    """Test when description matches via regex pattern."""
+    import_for = mock_account(1)
+    txn_import = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    txn_candidate = mock_transaction(
+        "2024-03-09", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
+
+    result = matching_service.is_match(import_for, txn_import, txn_candidate)
+    assert result is True, "Expected True when description matches a regex pattern"
+
+
+def test_compare_splits_matching(mock_transaction, mock_split):
+    """Test when the candidate matches the imported transaction exactly."""
+    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    candidate = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+
+    result = MatchingService.compare_splits(imported, candidate)
+    assert result == candidate, "Expected candidate to be returned when splits match"
+
+
+def test_compare_splits_mismatching_amount(mock_transaction, mock_split):
+    """Test when a split amount does not match."""
+    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    candidate = mock_transaction([mock_split(1, 100), mock_split(2, -50)])  # Amount mismatch
+
+    result = MatchingService.compare_splits(imported, candidate)
+    assert result is None, "Expected None when a split amount does not match"
+
+
+def test_compare_splits_mismatching_account(mock_transaction, mock_split):
+    """Test when an account ID does not match."""
+    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    candidate = mock_transaction([mock_split(3, 100), mock_split(2, -100)])  # Account mismatch
+
+    result = MatchingService.compare_splits(imported, candidate)
+    assert result is None, "Expected None when an account ID does not match"
+
+
+def test_compare_splits_extra_split(mock_transaction, mock_split):
+    """Test when candidate has an extra split that is not in imported."""
+    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    candidate = mock_transaction(
+        [mock_split(1, 100), mock_split(2, -100), mock_split(3, 50)]
+    )  # Extra split
+
+    result = MatchingService.compare_splits(imported, candidate)
+    assert result is None, "Expected None when candidate has an extra split"
+
+
+def test_compare_splits_missing_split(mock_transaction, mock_split):
+    """Test when candidate has a missing split compared to imported."""
+    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    candidate = mock_transaction([mock_split(1, 100)])  # Missing second split
+
+    result = MatchingService.compare_splits(imported, candidate)
+    assert result is None, "Expected None when candidate has a missing split"
+
+
+def test_compare_splits_unordered_matching(mock_transaction, mock_split):
+    """Test when candidate splits match but are in a different order."""
+    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    candidate = mock_transaction([mock_split(2, -100), mock_split(1, 100)])  # Reversed order
+
+    result = MatchingService.compare_splits(imported, candidate)
+    assert result == candidate, "Expected candidate to be returned even if order differs"
+
+
+def test_compare_splits_empty_splits(mock_transaction):
+    """Test when both transactions have no splits (edge case)."""
+    imported = mock_transaction([])
+    candidate = mock_transaction([])
+
+    result = MatchingService.compare_splits(imported, candidate)
+    assert result == candidate, "Expected candidate to be returned when both are empty"
+
+
+def test_compare_splits_one_empty(mock_transaction, mock_split):
+    """Test when one transaction is empty and the other is not."""
+    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    candidate = mock_transaction([])  # Candidate is empty
+
+    result = MatchingService.compare_splits(imported, candidate)
+    assert result is None, "Expected None when candidate has no splits"
+
+    imported_empty = mock_transaction([])
+    candidate_nonempty = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+
+    result = MatchingService.compare_splits(imported_empty, candidate_nonempty)
+    assert result is None, "Expected None when imported has no splits"
+
+
+def test_batch_query_candidates_success(
+    matching_service, mock_transaction_service, mock_transaction
+):
+    """Test batch query candidates with a valid range of transactions."""
+    book_id = "12345"
     imported_transactions = [
-        Transaction(transaction_date=date(2025, 1, 10)),
-        Transaction(transaction_date=date(2025, 1, 15)),
+        mock_transaction('2024-03-10'),
+        mock_transaction('2024-03-15'),
+        mock_transaction('2024-03-20'),
     ]
-    matching_accounts = ["account_1", "account_2"]
+    matching_accounts = ["acct1", "acct2"]
 
-    # Mock the transaction service's get_transactions_in_range method
-    matching_service.transaction_service.get_transactions_in_range = MagicMock(
-        return_value=[
-            Transaction(transaction_date=date(2025, 1, 8)),
-            Transaction(transaction_date=date(2025, 1, 12)),
-            Transaction(transaction_date=date(2025, 1, 16)),
-        ]
+    # Expected date range
+    expected_start_date = datetime.fromisoformat('2024-03-10') - timedelta(days=DEFAULT_DATE_OFFSET)
+    expected_end_date = datetime.fromisoformat('2024-03-20') + timedelta(days=DEFAULT_DATE_OFFSET)
+
+    # Call the function
+    result = matching_service.batch_query_candidates(
+        book_id, imported_transactions, matching_accounts
     )
 
-    # Call the method
-    candidates = matching_service._batch_query_candidates(
-        "book_id", imported_transactions, matching_accounts
-    )
-
-    # Verify the method was called with the correct date range and accounts
-    matching_service.transaction_service.query_matchable_transactions.assert_called_once_with(
-        book_id="book_id",
-        start_date=date(2025, 1, 8),  # 2 days before the earliest transaction
-        end_date=date(2025, 1, 17),  # 2 days after the latest transaction
+    # Assertions
+    mock_transaction_service.query_matchable_transactions.assert_called_once_with(
+        book_id=book_id,
+        start_date=expected_start_date,
+        end_date=expected_end_date,
         accounts_to_match_for=matching_accounts,
     )
-
-    # Verify the returned candidates
-    assert len(candidates) == 3
-
-    # Verify that candidates contain expected transactions
-    assert candidates[0].transaction_date == date(2025, 1, 8)
-    assert candidates[1].transaction_date == date(2025, 1, 12)
-    assert candidates[2].transaction_date == date(2025, 1, 16)
+    assert result == {"mock_result": []}, "Expected mock result to be returned"
 
 
-def test_import_transactions(matching_service):
-    # Mock imported transactions
+def test_batch_query_candidates_single_transaction(
+    matching_service, mock_transaction_service, mock_transaction
+):
+    """Test batch query candidates with only one transaction."""
+    book_id = "12345"
+    imported_transactions = [mock_transaction('2024-03-15')]
+    matching_accounts = ["acct1"]
+
+    expected_start_date = datetime.fromisoformat('2024-03-15') - timedelta(days=DEFAULT_DATE_OFFSET)
+    expected_end_date = datetime.fromisoformat('2024-03-15') + timedelta(days=DEFAULT_DATE_OFFSET)
+
+    # Call the function
+    result = matching_service.batch_query_candidates(
+        book_id, imported_transactions, matching_accounts
+    )
+
+    # Assertions
+    mock_transaction_service.query_matchable_transactions.assert_called_once_with(
+        book_id=book_id,
+        start_date=expected_start_date,
+        end_date=expected_end_date,
+        accounts_to_match_for=matching_accounts,
+    )
+    assert result == {"mock_result": []}, "Expected mock result to be returned"
+
+
+def test_batch_query_candidates_empty_transactions(matching_service, mock_transaction_service):
+    """Test batch query candidates with an empty imported transactions list."""
+    book_id = "12345"
+    imported_transactions = []  # No transactions
+    matching_accounts = ["acct1"]
+
+    with pytest.raises(ValueError, match=r"min\(\) iterable argument is empty"):
+        matching_service.batch_query_candidates(book_id, imported_transactions, matching_accounts)
+
+
+def test_batch_query_candidates_no_matching_accounts(
+    matching_service, mock_transaction_service, mock_transaction
+):
+    """Test batch query candidates with no matching accounts (should still execute)."""
+    book_id = "12345"
     imported_transactions = [
-        Transaction(
-            transaction_date=date(2025, 1, 10),
-            transaction_description="Payment Thank You - Web",
-            splits=[
-                Split(account_id="my-checking-account", amount=100),
-                Split(account_id="my-creditcard-account", amount=-100),
-            ],
-        )
+        mock_transaction('2024-03-15'),
+        mock_transaction('2024-03-20'),
     ]
+    matching_accounts = []  # No accounts specified
 
-    # Mock the account rules
-    matching_service._get_account_rules = MagicMock(
-        return_value={
-            "my-creditcard-account": {
-                "date_offset": 1,
-                "description_patterns": ["^Payment Thank You - Web$"],
+    expected_start_date = datetime.fromisoformat('2024-03-15') - timedelta(days=DEFAULT_DATE_OFFSET)
+    expected_end_date = datetime.fromisoformat('2024-03-20') + timedelta(days=DEFAULT_DATE_OFFSET)
+
+    # Call the function
+    result = matching_service.batch_query_candidates(
+        book_id, imported_transactions, matching_accounts
+    )
+
+    # Assertions
+    mock_transaction_service.query_matchable_transactions.assert_called_once_with(
+        book_id=book_id,
+        start_date=expected_start_date,
+        end_date=expected_end_date,
+        accounts_to_match_for=matching_accounts,
+    )
+    assert result == {"mock_result": []}, "Expected mock result to be returned"
+
+
+def test_matchable_accounts_success(mock_matching_rules_from_config):
+    """Test retrieving matchable accounts successfully."""
+    result = mock_matching_rules_from_config.matchable_accounts("checking-chase-personal-1381")
+    assert result == {"creditcard-chase-personal-6063"}, "Expected matchable account IDs"
+
+
+def test_matchable_accounts_key_error(mock_matching_rules_from_config):
+    """Test KeyError when querying an unknown account."""
+    with pytest.raises(KeyError):
+        mock_matching_rules_from_config.matchable_accounts("unknown-account")
+
+
+def test_matching_patterns_success(mock_matching_rules_from_config):
+    """Test retrieving matching patterns for valid accounts."""
+    result = mock_matching_rules_from_config.matching_patterns(
+        "checking-chase-personal-1381", "creditcard-chase-personal-6063"
+    )
+    assert result == [
+        "^AUTOMATIC PAYMENT - THANK(?: YOU)?$",
+        "^Payment Thank You\\s?-\\s?(Web|Mobile)$",
+    ], "Expected correct regex patterns"
+
+
+def test_matching_patterns_key_error(mock_matching_rules_from_config):
+    """Test KeyError when querying invalid import or corresponding accounts."""
+    with pytest.raises(KeyError):
+        mock_matching_rules_from_config.matching_patterns(
+            "checking-chase-personal-1381", "nonexistent-account"
+        )
+
+
+def test_matching_date_offset_success(mock_matching_rules_from_config):
+    """Test retrieving date offset for valid accounts."""
+    result = mock_matching_rules_from_config.matching_date_offset(
+        "creditcard-chase-personal-6063", "checking-chase-personal-1381"
+    )
+    assert result == 3, "Expected correct date offset"
+
+
+def test_matching_date_offset_key_error(mock_matching_rules_from_config):
+    """Test KeyError when querying an invalid account pair for date offset."""
+    with pytest.raises(KeyError):
+        mock_matching_rules_from_config.matching_date_offset(
+            "checking-chase-personal-1381", "invalid-account"
+        )
+
+
+def test_matching_rules_malformed_data():
+    """Test behavior when matching rules configuration is malformed."""
+    malformed_data = {
+        "matching_rules": {
+            "checking-chase-personal-1381": {
+                "creditcard-chase-personal-6063": {
+                    # Missing "description_patterns"
+                    "date_offset": 1
+                }
             }
         }
-    )
+    }
 
-    # Mock batch query candidates
-    matching_service._batch_query_candidates = MagicMock(
-        return_value=[
-            Transaction(
-                transaction_date=date(2025, 1, 9),
-                transaction_description="Payment Thank You - Web",
-                splits=[
-                    Split(account_id="my-checking-account", amount=-100),
-                    Split(account_id="my-creditcard-account", amount=100),
-                ],
+    with patch("builtins.open"), patch("json.load", return_value=malformed_data):
+        matching_rules = MatchingRules("blah blah blah")
+
+        with pytest.raises(KeyError):
+            matching_rules.matching_patterns(
+                "checking-chase-personal-1381", "creditcard-chase-personal-6063"
             )
-        ]
-    )
-
-    # Mock grouping candidates by account
-    matching_service._group_candidates_by_account = MagicMock(
-        return_value={
-            "my-creditcard-account": [
-                Transaction(
-                    transaction_date=date(2025, 1, 9),
-                    transaction_description="Payment Thank You - Web",
-                    splits=[
-                        Split(account_id="my-checking-account", amount=-100),
-                        Split(account_id="my-creditcard-account", amount=100),
-                    ],
-                )
-            ]
-        }
-    )
-
-    # Mock helper methods
-    matching_service._is_match = MagicMock(return_value=True)
-    matching_service._mark_matched = MagicMock()
-    matching_service._add_transaction_to_ledger = MagicMock()
-
-    # Call the method
-    matching_service.import_transactions("book_id", "my-checking-account", imported_transactions)
-
-    # Verify _get_account_rules was called correctly
-    matching_service._get_account_rules.assert_called_once_with("my-checking-account")
-
-    # Verify _batch_query_candidates was called with the right parameters
-    matching_service._batch_query_candidates.assert_called_once_with(
-        "book_id", imported_transactions, ["my-creditcard-account"]
-    )
-
-    # Verify _group_candidates_by_account was called
-    matching_service._group_candidates_by_account.assert_called_once()
-
-    # Verify _is_match was called to match the transactions
-    matching_service._is_match.assert_called_once()
-
-    # Verify _mark_matched was called since a match was found
-    matching_service._mark_matched.assert_called_once()
-
-    # Verify _add_transaction_to_ledger was not called since the transaction was matched
-    matching_service._add_transaction_to_ledger.assert_not_called()
