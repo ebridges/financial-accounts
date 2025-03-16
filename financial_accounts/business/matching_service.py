@@ -115,15 +115,17 @@ class MatchingService(BaseService):
             Transaction | None: Returns the candidate transaction if all of its splits match
             the imported transaction's splits by account_id & amount.
         """
+        # sanity check
+        if len(candidate.splits) != len(imported.splits):
+            return None
+
         # Create a lookup dictionary of imported splits based on (account_id, amount)
-        imported_splits_lookup = {
-            (split.account_id, split.amount): split for split in imported.splits
-        }
+        imported_splits_set = {(split.account_id, split.amount) for split in imported.splits}
 
         # Iterate through all candidate splits and check if they exist in the imported transaction
         for candidate_split in candidate.splits:
             key = (candidate_split.account_id, candidate_split.amount)
-            if key not in imported_splits_lookup:
+            if key not in imported_splits_set:
                 return None  # If any split does not match, return None
 
         return candidate  # Return candidate only if all splits match
