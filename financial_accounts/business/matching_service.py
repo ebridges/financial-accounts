@@ -8,10 +8,55 @@ from financial_accounts.business.base_service import BaseService
 from financial_accounts.business.transaction_service import TransactionService
 from financial_accounts.db.models import Transaction, Account
 
-DEFAULT_DATE_OFFSET = 0
+DEFAULT_DATE_OFFSET = 1
 
 
 class MatchingRules:
+    '''
+    Example matching rules:
+    ```json
+    {
+        "matching_rules": {
+            "checking-chase-personal-1381": {
+                "creditcard-chase-personal-6063": {
+                    "date_offset": 1,
+                    "description_patterns": [
+                        "^AUTOMATIC PAYMENT - THANK(?: YOU)?$",
+                        "^Payment Thank You\\s?-\\s?(Web|Mobile)$"
+                    ]
+                },
+                "checking-chase-personal-1605": {
+                    "date_offset": 1,
+                    "description_patterns": [
+                        "^Online Transfer\\s+from\\s+CHK\\s*\\.\\.\\.1605(?:\\s+transaction#:\\s*\\d{2,})?$",
+                        "^Online Transfer\\s+to\\s+CHK\\s*\\.\\.\\.1605(?:\\s+transaction#:\\s*(?:\\d{2,}(?:\\s+\\d{2}/\\d{2})?|\\d{2}/\\d{2}))?(?:\\s+t)?$"
+                    ]
+                }
+            },
+            "creditcard-chase-personal-6063": {
+                "checking-chase-personal-1381": {
+                    "date_offset": 3,
+                    "description_patterns": [
+                        "^CHASE CREDIT CRD AUTOPAY\\s*(?:\\d+)?\\s*PPD ID:\\s*\\d+$",
+                        "^CITI AUTOPAY\\s+PAYMENT\\s+\\d+\\s+WEB ID:\\s+CITICARDAP$",
+                        "^Payment to Chase card ending in \\d{4}\\s+\\d{2}/\\d{2}$"
+                    ]
+                }
+            },
+            "checking-chase-personal-1605": {
+                "checking-chase-personal-1381": {
+                    "date_offset": 2,
+                    "description_patterns": [
+                        "^Online Transfer\\s+from\\s+CHK\\s*\\.\\.\\.138\\d?(?:\\s+transaction#:\\s*\\S*)?$",
+                        "^Online Transfer\\s+to\\s+CHK\\s*\\.\\.\\.138\\d?(?:\\s+transaction#:\\s*\\S+\\s+\\S+)?(?:\\s+t)?$"
+                    ]
+                }
+            }
+        }
+    }
+    ```
+    '''
+
     def __init__(self, matching_rules: str):
         with open(matching_rules, 'r') as file:
             self.rules = json.load(fp=file)
