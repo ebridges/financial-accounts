@@ -83,6 +83,9 @@ class MatchingService(BaseService):
     def import_transactions(
         self, book_id: str, import_for: Account, to_import: List[Transaction]
     ) -> None:
+        '''
+        Import a list of transactions into the book identified by `book_id` into the given account.
+        '''
         matchable_accounts = self.rules.matchable_accounts(import_for)
         candidates = self.batch_query_candidates(book_id, to_import, matchable_accounts)
 
@@ -99,6 +102,9 @@ class MatchingService(BaseService):
     def is_match(
         self, import_for: Account, txn_import: Transaction, txn_candidate: Transaction
     ) -> bool:
+        '''
+        For a given `txn_import` to import into `import_for`, check to see if it matches `txn_candidate`
+        '''
         split_match = MatchingService.compare_splits(txn_import, txn_candidate)
         if not split_match:
             return False
