@@ -22,45 +22,6 @@ from financial_accounts.db.updated_mixin import UpdatedAtMixin
 Base = declarative_base()
 
 
-# from uuid import uuid4, UUID
-# from sqlalchemy.types import TypeDecorator
-# from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-#
-# class GUID(TypeDecorator):
-#     """Platform-independent GUID type.
-#     When used with PostgreSQL, uses native UUID.
-#     Otherwise, stores as String(36).
-#     """
-
-#     impl = String(36)
-#     cache_ok = True
-
-#     def load_dialect_impl(self, dialect):
-#         if dialect.name == 'postgresql':
-#             return dialect.type_descriptor(PG_UUID())
-#         else:
-#             return dialect.type_descriptor(String(36))
-
-#     def process_bind_param(self, value, dialect):
-#         if value is None:
-#             return None
-#         if not isinstance(value, UUID):
-#             value = UUID(value)
-#         if dialect.name == 'postgresql':
-#             return value
-#         else:
-#             return str(value)
-
-#     def process_result_value(self, value, dialect):
-#         if value is None:
-#             return None
-#         return UUID(value)
-
-
-# def uuid():
-#     return str(uuid4())
-
-
 class AccountTypeEnum(str, Enum):
     ASSET = "ASSET"
     LIABILITY = "LIABILITY"
