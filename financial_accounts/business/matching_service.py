@@ -11,50 +11,73 @@ from financial_accounts.db.models import Transaction, Account
 DEFAULT_DATE_OFFSET = 0
 
 
+class MatchingRules:
+    def __init__(self, matching_rules: str):
+        with open(matching_rules, 'r') as file:
+            self.rules = json.load(fp=file)
+
+    def matchable_accounts(self, account):
+        return self.rules["matching_rules"][account].keys()
+
+    def matching_patterns(self, import_account, corresponding_account) -> list[str]:
+        return self.rules["matching_rules"][import_account][corresponding_account][
+            "description_patterns"
+        ]
+
+    def matching_date_offset(self, import_account, corresponding_account) -> int:
+        return self.rules["matching_rules"][import_account][corresponding_account]["date_offset"]
+
+
 class MatchingService(BaseService):
     def __init__(self, config_path: str, transaction_service: TransactionService):
         super().__init__()
-        self.config = self._load_config(config_path)
+        # self.config = self._load_config(config_path)
+        self.rules = MatchingRules(config_path)
         self.transaction_service = transaction_service
 
-    def _load_config(self, config_path: str) -> Dict:
-        """Load JSON configuration for matching criteria."""
-        with open(config_path, 'r') as file:
-            return json.load(file)
-
     def import_transactions(
-        self, book_id: str, import_for_account: str, to_import: List[Transaction]
+        self, book_id: str, import_for: Account, to_import: List[Transaction]
     ) -> None:
-        """
-        Match imported transactions against candidates in memory.
-        """
-        rules = self._get_account_rules(import_for_account)
+        matchable_accounts = self.rules.matchable_accounts(import_for)
+        candidates = self.batch_query_candidates(book_id, to_import, matchable_accounts)
 
-        # Batch query all candidates
-        candidates = self._batch_query_candidates(book_id, to_import, list(rules.keys()))
-
-        candidate_cache = self._group_candidates_by_account(candidates=candidates)
-
-        for txn in to_import:
-            matched = None
-
-            # Iterate through all corresponding accounts in the rules
-            for candidate_account in rules.keys():
-                potential_matches = candidate_cache.get(candidate_account, [])
-                for candidate in potential_matches:
-                    if self._is_match(txn, candidate, rules):
-                        matched = candidate
-                        break
-                if matched is not None:
+        for txn_import in to_import:
+            for txn_candidate in candidates:
+                matched = self.is_match(import_for, txn_import, txn_candidate)
+                if matched:
+                    self.mark_matched(txn_import)
+                    info(f'Transaction {txn_import} matched.')
                     break
-
-            if matched is not None:
-                self._mark_matched(matched)
-                info(f'Transaction {txn} matched.')
             else:
-                self._add_transaction_to_ledger(txn)
+                self.add_transaction_to_ledger(txn_import)
 
-    def _batch_query_candidates(
+    def is_match(
+        self, import_for: Account, txn_import: Transaction, txn_candidate: Transaction
+    ) -> bool:
+        split_match = MatchingService.compare_splits(txn_import, txn_candidate)
+        if not split_match:
+            return False
+
+        corresponding_account = txn_import.corresponding_account(import_for)
+
+        # attempt to match the description on the candidate transaction
+        patterns = self.rules.matching_patterns(import_for, corresponding_account)
+        description = txn_candidate.transaction_description
+        for pattern in patterns:
+            if re.match(pattern, description):
+                break
+        else:  # No match for any pattern
+            return False
+
+        # confirm it's within date range
+        date_offset = self.rules.matching_date_offset(import_for, corresponding_account)
+        date_diff = abs((txn_import.transaction_date - txn_candidate.transaction_date).days)
+        if date_diff > date_offset:
+            return False
+
+        return True
+
+    def batch_query_candidates(
         self, book_id: str, imported_transactions: List[Transaction], matching_accounts: List[str]
     ) -> Dict[str, List[Transaction]]:
         """
@@ -77,107 +100,38 @@ class MatchingService(BaseService):
 
         return c
 
-    def _get_account_rules(self, account: str) -> Dict[str, Dict]:
-        """
-        Return the matching rules for the given account.
-
-        Args:
-            account (str): The name of the account to get rules for.
-
-        Returns:
-            Dict[str, Dict]: A dictionary mapping corresponding accounts to their rules.
-        """
-        account_rules = {}
-
-        # Find the account configuration
-        for acct_config in self.config.get("accounts", []):
-            if acct_config["account"] == account:
-                # Iterate through corresponding accounts and format the output
-                for corresponding_account, rules in acct_config.get(
-                    "corresponding_accounts", {}
-                ).items():
-                    account_rules[corresponding_account] = {
-                        "date_offset": rules.get(
-                            "date_offset",
-                            self.config.get("global_defaults", {}).get("date_offset", 0),
-                        ),
-                        "description_patterns": rules.get(
-                            "description_patterns",
-                            self.config.get("global_defaults", {}).get("description_patterns", []),
-                        ),
-                    }
-
-        return account_rules
-
-    def _group_candidates_by_account(
-        self, candidates: List[Transaction]
-    ) -> Dict[str, List[Transaction]]:
-        grouped = {}
-        for candidate in candidates:
-            for split in candidate.splits:
-                account_name = split.account.name
-                if account_name not in grouped:
-                    grouped[account_name] = []
-                grouped[account_name].append(candidate)
-        return grouped
-
     @staticmethod
-    def compare_splits(imported: Transaction, candidate: Transaction) -> Account | None:
+    def compare_splits(imported: Transaction, candidate: Transaction) -> Transaction | None:
         """
-        Compare the splits between these two transactions. If a split in the candidate matches
-        a split in the transaction being imported (based on the `account_id` and the `amount` of the splits),
-        return the account of the _other split_ in the candidate.
+        Compare the splits between these two transactions. If all splits in the candidate match
+        splits in the transaction being imported (based on `account_id` and `amount` of the splits),
+        return the candidate transaction.
 
         Args:
             imported (Transaction): The transaction being imported.
             candidate (Transaction): The transaction to compare against.
 
         Returns:
-            str | None: The `account` of the _other split_ in the candidate if a match is found, otherwise None.
+            Transaction | None: Returns the candidate transaction if all of its splits match
+            the imported transaction's splits by account_id & amount.
         """
-        for imported_split in imported.splits:
-            for candidate_split in candidate.splits:
-                # Check for a match on account_id and amount
-                if (
-                    imported_split.account_id == candidate_split.account_id
-                    and imported_split.amount == candidate_split.amount
-                ):
-                    # Find the _other split_ in the candidate transaction
-                    for other_candidate_split in candidate.splits:
-                        if other_candidate_split.id != candidate_split.id:
-                            return other_candidate_split.account
+        # Create a lookup dictionary of imported splits based on (account_id, amount)
+        imported_splits_lookup = {
+            (split.account_id, split.amount): split for split in imported.splits
+        }
 
-        return None
+        # Iterate through all candidate splits and check if they exist in the imported transaction
+        for candidate_split in candidate.splits:
+            key = (candidate_split.account_id, candidate_split.amount)
+            if key not in imported_splits_lookup:
+                return None  # If any split does not match, return None
 
-    def _is_match(self, imported: Transaction, candidate: Transaction, rules: Dict) -> bool:
-        """Check if an imported transaction matches a candidate."""
+        return candidate  # Return candidate only if all splits match
 
-        matched = MatchingService.compare_splits(imported, candidate)
-        if not matched:
-            return False
-
-        # Match description
-        patterns = rules.get(matched.name).get("description_patterns", [])
-        if patterns:
-            description = candidate.transaction_description
-            for pattern in patterns:
-                if re.match(pattern, description):
-                    break
-            else:  # No match for any pattern
-                return False
-
-        # Match date range
-        date_offset = rules.get(matched.name).get("date_offset", DEFAULT_DATE_OFFSET)
-        date_diff = abs((imported.transaction_date - candidate.transaction_date).days)
-        if date_diff > date_offset:
-            return False
-
-        return True
-
-    def _mark_matched(self, txn: Transaction):
+    def mark_matched(self, txn: Transaction):
         """Update transaction to mark it as matched using TransactionService."""
         self.transaction_service.mark_transaction_matched(txn)
 
-    def _add_transaction_to_ledger(self, txn: Transaction):
+    def add_transaction_to_ledger(self, txn: Transaction):
         """Add a new transaction to the ledger using TransactionService."""
         self.transaction_service.insert_transaction(txn)
