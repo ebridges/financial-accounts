@@ -74,10 +74,10 @@ class MatchingRules:
 
 
 class MatchingService(BaseService):
-    def __init__(self, config_path: str, transaction_service: TransactionService):
+    def __init__(self, matching_rules: MatchingRules, transaction_service: TransactionService):
         super().__init__()
         # self.config = self._load_config(config_path)
-        self.rules = MatchingRules(config_path)
+        self.rules = matching_rules
         self.transaction_service = transaction_service
 
     def import_transactions(
@@ -131,7 +131,7 @@ class MatchingService(BaseService):
         # Determine global date range for the batch
         min_date = min(txn.transaction_date for txn in imported_transactions)
         max_date = max(txn.transaction_date for txn in imported_transactions)
-        buffer_days = self.config["global_defaults"].get("date_offset", DEFAULT_DATE_OFFSET)
+        buffer_days = DEFAULT_DATE_OFFSET
         min_date -= timedelta(days=buffer_days)
         max_date += timedelta(days=buffer_days)
 
