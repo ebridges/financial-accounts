@@ -40,6 +40,12 @@ class Book(Base, UpdatedAtMixin):
     accounts = relationship("Account", back_populates="book", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="book", cascade="all, delete-orphan")
 
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class Account(Base, UpdatedAtMixin):
     __tablename__ = 'account'
@@ -67,6 +73,12 @@ class Account(Base, UpdatedAtMixin):
     book = relationship("Book", back_populates="accounts")
     parent_account = relationship("Account", remote_side="Account.id", uselist=False)
     splits = relationship("Split", back_populates="account", cascade="all, delete-orphan")
+
+    def __str__(self):
+        return self.full_name
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class InvalidTransactionSplitError(Exception):
@@ -129,6 +141,9 @@ class Transaction(Base, UpdatedAtMixin):
 
     def __str__(self):
         return f'txn_date: {self.transaction_date}, match_status: {self.match_status}, description: {self.transaction_description}, amount: {self.splits[0].amount}'
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class Split(Base, UpdatedAtMixin):
