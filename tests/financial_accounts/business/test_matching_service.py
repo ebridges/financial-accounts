@@ -208,8 +208,12 @@ def test_is_match_success_with_regex(matching_service, mock_account, mock_transa
 
 def test_compare_splits_matching(mock_transaction, mock_split):
     """Test when the candidate matches the imported transaction exactly."""
-    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
-    candidate = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    imported = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    candidate = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
 
     result = MatchingService.compare_splits(imported, candidate)
     assert result == candidate, "Expected candidate to be returned when splits match"
@@ -217,8 +221,12 @@ def test_compare_splits_matching(mock_transaction, mock_split):
 
 def test_compare_splits_mismatching_amount(mock_transaction, mock_split):
     """Test when a split amount does not match."""
-    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
-    candidate = mock_transaction([mock_split(1, 100), mock_split(2, -50)])  # Amount mismatch
+    imported = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    candidate = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -50)]
+    )  # Amount mismatch
 
     result = MatchingService.compare_splits(imported, candidate)
     assert result is None, "Expected None when a split amount does not match"
@@ -226,8 +234,12 @@ def test_compare_splits_mismatching_amount(mock_transaction, mock_split):
 
 def test_compare_splits_mismatching_account(mock_transaction, mock_split):
     """Test when an account ID does not match."""
-    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
-    candidate = mock_transaction([mock_split(3, 100), mock_split(2, -100)])  # Account mismatch
+    imported = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    candidate = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(3, 100), mock_split(2, -100)]
+    )  # Account mismatch
 
     result = MatchingService.compare_splits(imported, candidate)
     assert result is None, "Expected None when an account ID does not match"
@@ -235,9 +247,11 @@ def test_compare_splits_mismatching_account(mock_transaction, mock_split):
 
 def test_compare_splits_extra_split(mock_transaction, mock_split):
     """Test when candidate has an extra split that is not in imported."""
-    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    imported = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
     candidate = mock_transaction(
-        [mock_split(1, 100), mock_split(2, -100), mock_split(3, 50)]
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100), mock_split(3, 50)]
     )  # Extra split
 
     result = MatchingService.compare_splits(imported, candidate)
@@ -246,8 +260,12 @@ def test_compare_splits_extra_split(mock_transaction, mock_split):
 
 def test_compare_splits_missing_split(mock_transaction, mock_split):
     """Test when candidate has a missing split compared to imported."""
-    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
-    candidate = mock_transaction([mock_split(1, 100)])  # Missing second split
+    imported = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    candidate = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100)]
+    )  # Missing second split
 
     result = MatchingService.compare_splits(imported, candidate)
     assert result is None, "Expected None when candidate has a missing split"
@@ -255,8 +273,12 @@ def test_compare_splits_missing_split(mock_transaction, mock_split):
 
 def test_compare_splits_unordered_matching(mock_transaction, mock_split):
     """Test when candidate splits match but are in a different order."""
-    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
-    candidate = mock_transaction([mock_split(2, -100), mock_split(1, 100)])  # Reversed order
+    imported = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    candidate = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(2, -100), mock_split(1, 100)]
+    )  # Reversed order
 
     result = MatchingService.compare_splits(imported, candidate)
     assert result == candidate, "Expected candidate to be returned even if order differs"
@@ -264,8 +286,8 @@ def test_compare_splits_unordered_matching(mock_transaction, mock_split):
 
 def test_compare_splits_empty_splits(mock_transaction):
     """Test when both transactions have no splits (edge case)."""
-    imported = mock_transaction([])
-    candidate = mock_transaction([])
+    imported = mock_transaction("2024-03-10", "Invoice 7890", [])
+    candidate = mock_transaction("2024-03-10", "Invoice 7890", [])
 
     result = MatchingService.compare_splits(imported, candidate)
     assert result == candidate, "Expected candidate to be returned when both are empty"
@@ -273,14 +295,18 @@ def test_compare_splits_empty_splits(mock_transaction):
 
 def test_compare_splits_one_empty(mock_transaction, mock_split):
     """Test when one transaction is empty and the other is not."""
-    imported = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
-    candidate = mock_transaction([])  # Candidate is empty
+    imported = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
+    candidate = mock_transaction("2024-03-10", "Invoice 7890", [])  # Candidate is empty
 
     result = MatchingService.compare_splits(imported, candidate)
     assert result is None, "Expected None when candidate has no splits"
 
-    imported_empty = mock_transaction([])
-    candidate_nonempty = mock_transaction([mock_split(1, 100), mock_split(2, -100)])
+    imported_empty = mock_transaction("2024-03-10", "Invoice 7890", [])
+    candidate_nonempty = mock_transaction(
+        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
+    )
 
     result = MatchingService.compare_splits(imported_empty, candidate_nonempty)
     assert result is None, "Expected None when imported has no splits"
@@ -382,54 +408,67 @@ def test_batch_query_candidates_no_matching_accounts(
     assert result == {"mock_result": []}, "Expected mock result to be returned"
 
 
-def test_matchable_accounts_success(mock_matching_rules_from_config):
+def test_matchable_accounts_success(mock_account, mock_matching_rules_from_config):
     """Test retrieving matchable accounts successfully."""
-    result = mock_matching_rules_from_config.matchable_accounts("checking-chase-personal-1381")
+    test_account = mock_account(123)
+    test_account.full_name = "checking-chase-personal-1381"
+
+    result = mock_matching_rules_from_config.matchable_accounts(test_account)
     assert result == {"creditcard-chase-personal-6063"}, "Expected matchable account IDs"
 
 
-def test_matchable_accounts_key_error(mock_matching_rules_from_config):
+def test_matchable_accounts_key_error(mock_account, mock_matching_rules_from_config):
     """Test KeyError when querying an unknown account."""
+    test_account = mock_account(123)
+    test_account.full_name = "unknown-account"
     with pytest.raises(KeyError):
-        mock_matching_rules_from_config.matchable_accounts("unknown-account")
+        mock_matching_rules_from_config.matchable_accounts(test_account)
 
 
-def test_matching_patterns_success(mock_matching_rules_from_config):
+def test_matching_patterns_success(mock_account, mock_matching_rules_from_config):
     """Test retrieving matching patterns for valid accounts."""
-    result = mock_matching_rules_from_config.matching_patterns(
-        "checking-chase-personal-1381", "creditcard-chase-personal-6063"
-    )
+    test_account_1 = mock_account(123)
+    test_account_1.full_name = "checking-chase-personal-1381"
+    test_account_2 = mock_account(456)
+    test_account_2.full_name = "creditcard-chase-personal-6063"
+    result = mock_matching_rules_from_config.matching_patterns(test_account_1, test_account_2)
     assert result == [
         "^AUTOMATIC PAYMENT - THANK(?: YOU)?$",
         "^Payment Thank You\\s?-\\s?(Web|Mobile)$",
     ], "Expected correct regex patterns"
 
 
-def test_matching_patterns_key_error(mock_matching_rules_from_config):
+def test_matching_patterns_key_error(mock_account, mock_matching_rules_from_config):
     """Test KeyError when querying invalid import or corresponding accounts."""
+    test_account_1 = mock_account(123)
+    test_account_1.full_name = "checking-chase-personal-1381"
+    test_account_2 = mock_account(456)
+    test_account_2.full_name = "nonexistent-account"
     with pytest.raises(KeyError):
-        mock_matching_rules_from_config.matching_patterns(
-            "checking-chase-personal-1381", "nonexistent-account"
-        )
+        mock_matching_rules_from_config.matching_patterns(test_account_1, test_account_2)
 
 
-def test_matching_date_offset_success(mock_matching_rules_from_config):
+def test_matching_date_offset_success(mock_account, mock_matching_rules_from_config):
     """Test retrieving date offset for valid accounts."""
-    result = mock_matching_rules_from_config.matching_date_offset(
-        "creditcard-chase-personal-6063", "checking-chase-personal-1381"
-    )
-    assert result == 3, "Expected correct date offset"
+    test_account_1 = mock_account(123)
+    test_account_1.full_name = "checking-chase-personal-1381"
+    test_account_2 = mock_account(456)
+    test_account_2.full_name = "creditcard-chase-personal-6063"
+    result = mock_matching_rules_from_config.matching_date_offset(test_account_1, test_account_2)
+    assert result == 1, "Expected correct date offset"
 
 
-def test_matching_date_offset_key_error(mock_matching_rules_from_config):
+def test_matching_date_offset_key_error(mock_account, mock_matching_rules_from_config):
     """Test KeyError when querying an invalid account pair for date offset."""
+    test_account_1 = mock_account(123)
+    test_account_1.full_name = "checking-chase-personal-1381"
+    test_account_2 = mock_account(456)
+    test_account_2.full_name = "nonexistent-account"
     with pytest.raises(KeyError):
-        mock_matching_rules_from_config.matching_date_offset(
-            "checking-chase-personal-1381", "invalid-account"
-        )
+        mock_matching_rules_from_config.matching_date_offset(test_account_1, test_account_2)
 
 
-def test_matching_rules_malformed_data():
+def test_matching_rules_malformed_data(mock_account):
     """Test behavior when matching rules configuration is malformed."""
     malformed_data = {
         "matching_rules": {
@@ -442,10 +481,13 @@ def test_matching_rules_malformed_data():
         }
     }
 
+    test_account_1 = mock_account(123)
+    test_account_1.full_name = "checking-chase-personal-1381"
+    test_account_2 = mock_account(456)
+    test_account_2.full_name = "creditcard-chase-personal-6063"
+
     with patch("builtins.open"), patch("json.load", return_value=malformed_data):
         matching_rules = MatchingRules("blah blah blah")
 
         with pytest.raises(KeyError):
-            matching_rules.matching_patterns(
-                "checking-chase-personal-1381", "creditcard-chase-personal-6063"
-            )
+            matching_rules.matching_patterns(test_account_1, test_account_2)
