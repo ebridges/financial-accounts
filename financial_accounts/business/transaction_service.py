@@ -26,12 +26,12 @@ class TransactionService(BaseService):
         # parse date
         date = datetime.strptime(txn_date, "%Y-%m-%d").date()
 
-        to_acct = self.data_access.get_account_by_name_for_book(book.id, to_acct)
+        to_acct = self.data_access.get_account_by_fullname_for_book(book.id, to_acct)
         if not to_acct:
             print(f"Debit account '{to_acct}' not found in book '{book_name}'.")
             return 1
 
-        from_acct = self.data_access.get_account_by_name_for_book(book.id, from_acct)
+        from_acct = self.data_access.get_account_by_fullname_for_book(book.id, from_acct)
         if not from_acct:
             raise Exception(f"Credit account '{from_acct}' not found in book '{book_name}'.")
 
