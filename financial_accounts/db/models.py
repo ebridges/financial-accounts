@@ -103,7 +103,9 @@ class Transaction(Base, UpdatedAtMixin):
     entry_date = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     transaction_description = Column(Text, nullable=False)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
-    match_status = Column(String(1), server_default='n', nullable=False)  # n=not, m=matched
+    match_status = Column(
+        String(1), server_default='n', nullable=False, default='n'
+    )  # n=not, m=matched
     memo = Column(String(1024), nullable=True)
     book = relationship("Book", back_populates="transactions")
     splits = relationship("Split", back_populates="transaction", cascade="all, delete-orphan")
