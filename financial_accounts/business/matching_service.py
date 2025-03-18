@@ -61,16 +61,20 @@ class MatchingRules:
         with open(matching_rules, 'r') as file:
             self.rules = json.load(fp=file)
 
-    def matchable_accounts(self, account):
-        return self.rules["matching_rules"][account].keys()
+    def matchable_accounts(self, account: Account) -> set:
+        return self.rules["matching_rules"][account.full_name].keys()
 
-    def matching_patterns(self, import_account, corresponding_account) -> list[str]:
-        return self.rules["matching_rules"][import_account][corresponding_account][
-            "description_patterns"
-        ]
+    def matching_patterns(
+        self, import_account: Account, corresponding_account: Account
+    ) -> list[str]:
+        return self.rules["matching_rules"][import_account.full_name][
+            corresponding_account.full_name
+        ]["description_patterns"]
 
-    def matching_date_offset(self, import_account, corresponding_account) -> int:
-        return self.rules["matching_rules"][import_account][corresponding_account]["date_offset"]
+    def matching_date_offset(self, import_account: Account, corresponding_account: Account) -> int:
+        return self.rules["matching_rules"][import_account.full_name][
+            corresponding_account.full_name
+        ]["date_offset"]
 
 
 class MatchingService(BaseService):
