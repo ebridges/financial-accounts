@@ -12,13 +12,24 @@ from financial_accounts.business.matching_service import MatchingService, Matchi
 
 TEST_DB_URL = "sqlite:///:memory:"
 
-A_1381 = 'Assets:Checking Accounts:checking-chase-personal-1381'
-A_1605 = 'Assets:Checking Accounts:checking-chase-personal-1605'
-A_6063 = 'Liabilities:Credit Cards:creditcard-chase-personal-6063'
+A_1381 = 'Asset:Checking Accounts:checking-chase-personal-1381'
+A_1605 = 'Asset:Checking Accounts:checking-chase-personal-1605'
+A_6063 = 'Liability:Credit Cards:creditcard-chase-personal-6063'
+A_1111 = 'Income:Salary-1111'
 
 
 @pytest.fixture(scope="module")
-def csv_data() -> str:
+def test_accounts() -> list[tuple]:
+    # returns a 3-tuple of full acct name, acct code (last 4 chars),
+    # and acct type (first part of acct name)
+    return [
+        (A_1111, int(A_1111.split('-')[-1]), A_1111.split(':')[0].upper()),
+        (A_1381, int(A_1381.split('-')[-1]), A_1381.split(':')[0].upper()),
+        (A_1605, int(A_1605.split('-')[-1]), A_1605.split(':')[0].upper()),
+        (A_6063, int(A_6063.split('-')[-1]), A_6063.split(':')[0].upper()),
+    ]
+
+
 @pytest.fixture(scope="module")
 def setup_transactions() -> str:
     '''
