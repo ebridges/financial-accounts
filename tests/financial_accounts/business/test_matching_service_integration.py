@@ -170,7 +170,7 @@ def matching_rules(config_file):
 
 
 @pytest.fixture(scope="module")
-def services(matching_rules):
+def services(matching_rules, test_accounts):
     """Initialize test database and provide TransactionService and MatchingService."""
     # Initialize TransactionService with test database
     ts = TransactionService().init_with_url(TEST_DB_URL)
@@ -183,17 +183,7 @@ def services(matching_rules):
     with ts as ts_ctx:  # open the session context
         book = ts_ctx.data_access.create_book(name="Test Book")
         # Create accounts referenced in matching rules
-        acct_names = [
-            (A_1381, "1381", "ASSET"),
-            (A_1605, "1605", "ASSET"),
-            (A_6063, "6063", "LIABILITY"),
-            (
-                "income-salary",
-                "SALARY",
-                "INCOME",
-            ),  # an extra account for unmatched external transactions
-        ]
-        for name, code, acct_type in acct_names:
+        for name, code, acct_type in test_accounts:
             ts_ctx.data_access.create_account(
                 book.id, code=code, name=name, full_name=name, acct_type=acct_type
             )
@@ -203,62 +193,53 @@ def services(matching_rules):
 
 
 @pytest.fixture
-def transactions_to_import(services, csv_file):
+def transactions_to_import(services, setup_csv_file, import_csv_file):
     """Parse CSV and prepare transactions for import. Also insert initial ledger transactions for matching."""
     ts, ms, book = services
 
-    # Insert initial ledger transactions (existing in DB) using TransactionService to simulate user-recorded data
+    # Insert initial ledger transactions (existing in DB) using
+    # TransactionService to simulate user-recorded data
     # These will serve as potential match candidates.
-    # 1. A transfer from account 1605 to 1381 on 2023-01-15 (should be matched by import on 1381).
-    ts.enter_transaction(
-        book_name=book.name,
-        txn_date="2023-01-15",
-        txn_desc="Online Transfer from CHK ...1605",
-        to_acct=A_1381,  # debit 1381 (receiving money)
-        from_acct=A_1605,  # credit 1605 (sending money)
-        amount="200.00",
-    )
-    # 2. An autopay credit card payment from checking 1381 to creditcard 6063 on 2023-04-04 (match candidate).
-    ts.enter_transaction(
-        book_name=book.name,
-        txn_date="2023-04-04",
-        txn_desc="CHASE CREDIT CRD AUTOPAY 2100 PPD ID: 123456",
-        to_acct=A_1381,  # credit 1381 (money out of checking)
-        from_acct=A_6063,  # debit 6063 (payment to credit card)
-        amount="250.00",
-    )
-    # At this point, the ledger has two transactions (both with match_status 'n' by default).
+    with open(setup_csv_file, newline='') as setupfile:
+        reader = csv.DictReader(setupfile)
+        for row in reader:
+            ts.enter_transaction(
+                book_name=book.name,
+                txn_date=row["date"],
+                txn_desc=row["description"],
+                to_acct=row["corresponding_account"],
+                from_acct=row["account"],
+                amount=row["amount"],
+                memo=row["row_id"],
+            )
+
+    # At this point, the ledger has some transactions (with match_status 'n' by default).
 
     # Parse the CSV file to get transactions to import
     transactions_to_import = {}  # dict to group transactions by account
-    with open(csv_file, newline='') as csvfile:
+    with open(import_csv_file, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            acct_name = row["account"]
             # Create Transaction object (not yet added to DB)
             txn = Transaction(
                 book_id=book.id,
-                transaction_date=datetime.strptime(row["date"], "%m/%d/%Y").date(),
+                transaction_date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
                 transaction_description=row["description"],
+                memo=row["row_id"],
+                match_status="n",
             )
 
-            amount = Decimal(row["amount"])
-            corr_acct_name = row.get("corresponding_account")
-
             # Find Account objects by name via TransactionService (or data_access)
-            acct = ts.data_access.get_account_by_fullname_for_book(book.id, acct_name)
-            if corr_acct_name:
-                corr_acct = ts.data_access.get_account_by_fullname_for_book(book.id, corr_acct_name)
-            # else:
-            #     # If no corresponding account provided, use a generic external account (e.g., income-salary for deposits)
-            #     corr_acct = ts.data_access.get_account_by_fullname_for_book(book.id, "income-salary")
+            acct = ts.data_access.get_account_by_fullname_for_book(book.id, row["account"])
+            corr_acct = ts.data_access.get_account_by_fullname_for_book(
+                book.id, row["corresponding_account"]
+            )
 
             # Create two splits for the transaction
-            d = Split(transaction=txn, account_id=acct.id, amount=amount)
-            c = Split(transaction=txn, account_id=corr_acct.id, amount=-amount)
+            amount = Decimal(row["amount"])
+            d = Split(transaction=txn, account_id=acct.id, amount=amount, account=acct)
+            c = Split(transaction=txn, account_id=corr_acct.id, amount=-amount, account=corr_acct)
             txn.splits = [d, c]
-            txn_id = ts.data_access.insert_transaction(txn=txn)
-            info(f'Transaction ID #{txn_id} created')
 
             transactions_to_import.setdefault(acct, []).append(txn)
     return transactions_to_import
