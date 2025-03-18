@@ -245,7 +245,9 @@ def transactions_to_import(services, setup_csv_file, import_csv_file):
     return transactions_to_import
 
 
-def test_import_transactions_matching_logic(services, transactions_to_import):
+def test_import_transactions_matching_logic(
+    services, transactions_to_import, transaction_match_mappings
+):
     ts, ms, book = services
 
     # Execute import for each account in the prepared transactions
