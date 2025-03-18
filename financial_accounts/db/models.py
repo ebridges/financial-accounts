@@ -131,7 +131,7 @@ class Transaction(Base, UpdatedAtMixin):
             )
 
         for split in self.splits:
-            if split.account_id != candidate.id:
+            if split.account.full_name != candidate.full_name:
                 return (
                     split.account
                 )  # Return the account from the split that does not match the given account
