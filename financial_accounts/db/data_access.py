@@ -206,12 +206,13 @@ class DAL:
             raise e
 
     def create_transaction(
-        self, book_id: str, transaction_date, transaction_description: str
+        self, book_id: str, transaction_date, transaction_description: str, memo: str = None
     ) -> Transaction:
         txn = Transaction(
             book_id=book_id,
             transaction_date=transaction_date,
             transaction_description=transaction_description,
+            memo=memo,
         )
         self.session.add(txn)
         self.session.commit()

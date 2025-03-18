@@ -19,14 +19,44 @@ A_6063 = 'Liabilities:Credit Cards:creditcard-chase-personal-6063'
 
 @pytest.fixture(scope="module")
 def csv_data() -> str:
-    # CSV block as a string
-    csv_text = f"""account,date,description,amount,corresponding_account
-{A_1381},09/26/2022,CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224,-620.00,{A_6063}
-{A_1381},07/18/2022,Online Transfer to CHK ...1605 transaction#: 14782136085 07/18,-500.00,{A_1605}
-{A_1605},07/18/2022,Online Transfer from CHK ...1381 transaction#: 14782136085,500.00,{A_1381}
-{A_6063},09/25/2022,AUTOMATIC PAYMENT - THANK,-620.00,{A_1381}
+@pytest.fixture(scope="module")
+def setup_transactions() -> str:
+    '''
+    These represent transactions that would be pre-existing in the database,
+    and would be targets for a match.
+    The `row_id` column is for testing purposes to be able to link to a
+    transaction that is later imported as being the match for test purposes.
+    '''
+    csv_text = f"""row_id,account,date,description,amount,corresponding_account
+1,{A_1381},2022-09-26,CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224,-620.00,{A_6063}
+2,{A_1381},2022-07-18,Online Transfer to CHK ...1605 transaction#: 14782136085 07/18,-500.00,{A_1605}
+3,{A_1605},2022-06-30,Online Transfer from CHK ...1381 transaction#: 18903209342,500.00,{A_1381}
 """
     return csv_text
+    # CSV block as a string
+    csv_text = f"""row_id,account,date,description,amount,corresponding_account
+A,{A_1605},2022-07-18,Online Transfer from CHK ...1381 transaction#: 14782136085,500.00,{A_1381}
+B,{A_6063},2022-09-27,AUTOMATIC PAYMENT - THANK,620.00,{A_1381}
+C,{A_1381},2022-10-01,Salary deposit,10000,{A_1111}
+"""
+    return csv_text
+
+
+@pytest.fixture(scope="module")
+def transaction_match_mappings() -> dict:
+    '''
+    This provides a mapping to indicate for test transactions are matched or not. The
+    key corresponds to the value of `row_id` in the test data, and is stored in the `memo`
+    field of the transaction.
+    '''
+    mapping = {}
+    mapping['A'] = 'm'
+    mapping['B'] = 'm'
+    mapping['C'] = 'n'
+    mapping['1'] = 'm'
+    mapping['2'] = 'm'
+    mapping['3'] = 'n'
+    return mapping
 
 
 @pytest.fixture(scope="module")
@@ -91,11 +121,25 @@ def config_file(rules_data):
 
 
 @pytest.fixture(scope="module")
-def csv_file(csv_data):
+def setup_csv_file(setup_transactions):
     with tempfile.NamedTemporaryFile(
         delete=False, mode='w', newline='', encoding='utf-8'
     ) as temp_file:
-        temp_file.write(csv_data)
+        temp_file.write(setup_transactions)
+        temp_file_path = temp_file.name
+
+    yield temp_file_path
+
+    if os.path.exists(temp_file_path):
+        os.remove(temp_file_path)
+
+
+@pytest.fixture(scope="module")
+def import_csv_file(import_transactions):
+    with tempfile.NamedTemporaryFile(
+        delete=False, mode='w', newline='', encoding='utf-8'
+    ) as temp_file:
+        temp_file.write(import_transactions)
         temp_file_path = temp_file.name
 
     yield temp_file_path

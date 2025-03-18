@@ -13,7 +13,9 @@ class TransactionService(BaseService):
     def insert_transaction(self, txn: Transaction):
         return self.data_access.insert_transaction(txn)
 
-    def enter_transaction(self, book_name, txn_date, txn_desc, to_acct, from_acct, amount):
+    def enter_transaction(
+        self, book_name, txn_date, txn_desc, to_acct, from_acct, amount, memo=None
+    ):
         book = self.data_access.get_book_by_name(book_name)
         if not book:
             raise Exception(f"No book found named '{book_name}'.")
@@ -37,6 +39,7 @@ class TransactionService(BaseService):
             book_id=book.id,
             transaction_date=date,
             transaction_description=txn_desc,
+            memo=memo,
         )
 
         self.data_access.create_split(transaction_id=txn.id, account_id=from_acct.id, amount=amt)
