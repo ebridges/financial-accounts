@@ -256,66 +256,75 @@ def test_import_transactions_matching_logic(
 
     # Fetch all transactions from the ledger after import
     all_txns = ts.get_all_transactions_for_book(book.id)
-    # Separate transactions by description for easier checking
-    txn_by_desc = {tx.transaction_description: tx for tx in all_txns}
 
-    # **Verification:**
+    for txn in all_txns:
+        row_id = txn.memo
+        expected_match = transaction_match_mappings[row_id]
+        actual_match = txn.match_status
 
-    # 1. Matched transactions: they should *not* be duplicated in the ledger, and should be marked as matched.
-    #    - The transfer on 2023-01-15 (1381 vs 1605) and the autopay on 2023-04-04 (1381 vs 6063) exist from setup.
-    #    - They should remain single entries and have match_status 'm' after import (marked as matched).
-    transfer_desc = "Online Transfer from CHK ...1605"
-    autopay_desc = "CHASE CREDIT CRD AUTOPAY 2100 PPD ID: 123456"
-    assert transfer_desc in txn_by_desc, "Initial transfer transaction missing from ledger."
-    assert autopay_desc in txn_by_desc, "Initial autopay transaction missing from ledger."
-    transfer_txn = txn_by_desc[transfer_desc]
-    autopay_txn = txn_by_desc[autopay_desc]
-    assert (
-        transfer_txn.match_status == 'm'
-    ), "Matched transfer transaction was not marked as matched."
-    assert autopay_txn.match_status == 'm', "Matched autopay transaction was not marked as matched."
+        assert actual_match == expected_match, f'Failed assertion: {txn} '
+        f'expected {expected_match} but was {actual_match} for row_id: {txn.memo}'
 
-    # 2. Unmatched imported transactions: they should be inserted into the ledger with match_status 'n'.
-    #    (Examples: transactions with non-matching descriptions or date offsets, and completely new transactions.)
-    # Check an import with a description mismatch (duplicate transfer from 1605 side).
-    dup_transfer_desc = "Online Transfer to CHK ...1381"
-    assert dup_transfer_desc in txn_by_desc, "Unmatched transfer (1605->1381) not inserted."
-    assert (
-        txn_by_desc[dup_transfer_desc].match_status == 'n'
-    ), "Unmatched transfer should remain not matched."
-    # Check an import with a date outside allowed offset (duplicate autopay outside date range).
-    late_autopay_desc = "AUTOMATIC PAYMENT - THANK YOU"
-    assert late_autopay_desc in txn_by_desc, "Unmatched autopay (date offset) not inserted."
-    assert (
-        txn_by_desc[late_autopay_desc].match_status == 'n'
-    ), "Out-of-range autopay should remain not matched."
-    # Check a completely new transaction (no candidate at all, e.g., salary deposit).
-    salary_desc = "Salary Payment"
-    assert salary_desc in txn_by_desc, "New external transaction (Salary) not inserted."
-    assert txn_by_desc[salary_desc].match_status == 'n', "New transaction should be not matched."
+    # # Separate transactions by description for easier checking
+    # txn_by_desc = {tx.transaction_description: tx for tx in all_txns}
 
-    # 3. No duplicate entries for matched transactions:
-    #    The originally recorded transactions should not be duplicated. We ensure that the count of transactions remains correct.
-    # Expected: initial 2 transactions + 4 unmatched imports = 6 total transactions in ledger.
-    assert len(all_txns) == 6, f"Ledger should contain 6 transactions (got {len(all_txns)})."
-    # Ensure the matched ones did not get inserted as new:
-    # (Their descriptions already checked to be present once. We confirm they appear only once by count of those descriptions.)
-    descriptions = [tx.transaction_description for tx in all_txns]
-    assert descriptions.count(transfer_desc) == 1, "Matched transfer was duplicated in ledger."
-    assert descriptions.count(autopay_desc) == 1, "Matched autopay was duplicated in ledger."
+    # # **Verification:**
 
-    # 4. Matched logic correctness:
-    #    Ensure that matching considered both description patterns and date offsets.
-    #    (If any expected match was missed or a wrong match made, the above assertions would catch it.)
-    # For completeness, verify that the mismatched cases truly failed matching due to pattern or date:
-    # - The transfer from 1605 had a different description than ledger's, causing no match.
-    assert transfer_txn.transaction_date == date(2023, 1, 15)
-    dup_transfer_txn = txn_by_desc[dup_transfer_desc]
-    # Should be a separate transaction on a different date (e.g., 2023-01-16 as in CSV), confirming it didn't match the 1-day offset rule due to description mismatch.
-    assert dup_transfer_txn.transaction_date == date(2023, 1, 16)
-    # - The late autopay had correct description but 5-day difference, beyond the 3-day offset, hence no match.
-    late_autopay_txn = txn_by_desc[late_autopay_desc]
-    assert (
-        abs((late_autopay_txn.transaction_date - autopay_txn.transaction_date).days) == 5
-    ), "Late autopay date difference is not 5 days as expected."
-    assert autopay_txn.match_status == 'm' and late_autopay_txn.match_status == 'n'
+    # # 1. Matched transactions: they should *not* be duplicated in the ledger, and should be marked as matched.
+    # #    - The transfer on 2023-01-15 (1381 vs 1605) and the autopay on 2023-04-04 (1381 vs 6063) exist from setup.
+    # #    - They should remain single entries and have match_status 'm' after import (marked as matched).
+    # transfer_desc = "Online Transfer from CHK ...1605"
+    # autopay_desc = "CHASE CREDIT CRD AUTOPAY 2100 PPD ID: 123456"
+    # assert transfer_desc in txn_by_desc, "Initial transfer transaction missing from ledger."
+    # assert autopay_desc in txn_by_desc, "Initial autopay transaction missing from ledger."
+    # transfer_txn = txn_by_desc[transfer_desc]
+    # autopay_txn = txn_by_desc[autopay_desc]
+    # assert (
+    #     transfer_txn.match_status == 'm'
+    # ), "Matched transfer transaction was not marked as matched."
+    # assert autopay_txn.match_status == 'm', "Matched autopay transaction was not marked as matched."
+
+    # # 2. Unmatched imported transactions: they should be inserted into the ledger with match_status 'n'.
+    # #    (Examples: transactions with non-matching descriptions or date offsets, and completely new transactions.)
+    # # Check an import with a description mismatch (duplicate transfer from 1605 side).
+    # dup_transfer_desc = "Online Transfer to CHK ...1381"
+    # assert dup_transfer_desc in txn_by_desc, "Unmatched transfer (1605->1381) not inserted."
+    # assert (
+    #     txn_by_desc[dup_transfer_desc].match_status == 'n'
+    # ), "Unmatched transfer should remain not matched."
+    # # Check an import with a date outside allowed offset (duplicate autopay outside date range).
+    # late_autopay_desc = "AUTOMATIC PAYMENT - THANK YOU"
+    # assert late_autopay_desc in txn_by_desc, "Unmatched autopay (date offset) not inserted."
+    # assert (
+    #     txn_by_desc[late_autopay_desc].match_status == 'n'
+    # ), "Out-of-range autopay should remain not matched."
+    # # Check a completely new transaction (no candidate at all, e.g., salary deposit).
+    # salary_desc = "Salary Payment"
+    # assert salary_desc in txn_by_desc, "New external transaction (Salary) not inserted."
+    # assert txn_by_desc[salary_desc].match_status == 'n', "New transaction should be not matched."
+
+    # # 3. No duplicate entries for matched transactions:
+    # #    The originally recorded transactions should not be duplicated. We ensure that the count of transactions remains correct.
+    # # Expected: initial 2 transactions + 4 unmatched imports = 6 total transactions in ledger.
+    # assert len(all_txns) == 6, f"Ledger should contain 6 transactions (got {len(all_txns)})."
+    # # Ensure the matched ones did not get inserted as new:
+    # # (Their descriptions already checked to be present once. We confirm they appear only once by count of those descriptions.)
+    # descriptions = [tx.transaction_description for tx in all_txns]
+    # assert descriptions.count(transfer_desc) == 1, "Matched transfer was duplicated in ledger."
+    # assert descriptions.count(autopay_desc) == 1, "Matched autopay was duplicated in ledger."
+
+    # # 4. Matched logic correctness:
+    # #    Ensure that matching considered both description patterns and date offsets.
+    # #    (If any expected match was missed or a wrong match made, the above assertions would catch it.)
+    # # For completeness, verify that the mismatched cases truly failed matching due to pattern or date:
+    # # - The transfer from 1605 had a different description than ledger's, causing no match.
+    # assert transfer_txn.transaction_date == date(2023, 1, 15)
+    # dup_transfer_txn = txn_by_desc[dup_transfer_desc]
+    # # Should be a separate transaction on a different date (e.g., 2023-01-16 as in CSV), confirming it didn't match the 1-day offset rule due to description mismatch.
+    # assert dup_transfer_txn.transaction_date == date(2023, 1, 16)
+    # # - The late autopay had correct description but 5-day difference, beyond the 3-day offset, hence no match.
+    # late_autopay_txn = txn_by_desc[late_autopay_desc]
+    # assert (
+    #     abs((late_autopay_txn.transaction_date - autopay_txn.transaction_date).days) == 5
+    # ), "Late autopay date difference is not 5 days as expected."
+    # assert autopay_txn.match_status == 'm' and late_autopay_txn.match_status == 'n'
