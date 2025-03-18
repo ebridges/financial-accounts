@@ -97,8 +97,8 @@ class MatchingService(BaseService):
             for txn_candidate in candidates:
                 matched = self.is_match(import_for, txn_import, txn_candidate)
                 if matched:
-                    self.mark_matched(txn_import)
-                    info(f'Transaction {txn_import} matched.')
+                    self.mark_matched(txn_candidate)
+                    info(f'Transaction {txn_candidate} matched.')
                     break
             else:
                 self.add_transaction_to_ledger(txn_import)
