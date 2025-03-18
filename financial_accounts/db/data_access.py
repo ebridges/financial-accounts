@@ -200,6 +200,7 @@ class DAL:
             self.session.query(Transaction).filter_by(id=transaction.id).update(
                 {"match_status": match_status}
             )
+            transaction.match_status = match_status
             self.session.commit()
         except Exception as e:
             self.session.rollback()
