@@ -44,6 +44,10 @@ def setup_transactions() -> str:
 3,{A_1605},2022-06-30,Online Transfer from CHK ...1381 transaction#: 18903209342,500.00,{A_1381}
 """
     return csv_text
+
+
+@pytest.fixture(scope="module")
+def import_transactions() -> str:
     # CSV block as a string
     csv_text = f"""row_id,account,date,description,amount,corresponding_account
 A,{A_1605},2022-07-18,Online Transfer from CHK ...1381 transaction#: 14782136085,500.00,{A_1381}
