@@ -261,8 +261,10 @@ def test_import_transactions_matching_logic(
         expected_match = transaction_match_mappings[row_id]
         actual_match = txn.match_status
 
-        assert actual_match == expected_match, f'Failed assertion: {txn} '
-        f'expected {expected_match} but was {actual_match} for row_id: {txn.memo}'
+        assert actual_match == expected_match, (
+            f'Failed assertion: {txn} '
+            f'expected {expected_match} but was {actual_match} for row_id: {txn.memo}'
+        )
 
     # # Separate transactions by description for easier checking
     # txn_by_desc = {tx.transaction_description: tx for tx in all_txns}
