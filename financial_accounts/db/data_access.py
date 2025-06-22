@@ -111,13 +111,19 @@ class DAL:
         return account
 
     def get_account(self, account_id: str) -> Optional[Account]:
-        return self.session.query(Account).filter_by(id=account_id).one_or_none()
+        return (
+            self.session.query(Account)
+            .options(joinedload(Account.splits))
+            .filter_by(id=account_id)
+            .one_or_none()
+        )
 
     def get_account_by_fullname_for_book(
         self, book_id: str, acct_fullname: str
     ) -> Optional[Account]:
         account = (
             self.session.query(Account)
+            .options(joinedload(Account.splits))
             .filter_by(book_id=book_id, full_name=acct_fullname)
             .one_or_none()
         )
@@ -128,6 +134,7 @@ class DAL:
     ) -> Optional[Account]:
         account = (
             self.session.query(Account)
+            .options(joinedload(Account.splits))
             .filter_by(book_id=book_id, code=acct_code, name=acct_name)
             .one_or_none()
         )
@@ -173,7 +180,12 @@ class DAL:
         return True
 
     def list_accounts_for_book(self, book_id: str) -> List[Account]:
-        return self.session.query(Account).filter_by(book_id=book_id).all()
+        return (
+            self.session.query(Account)
+            .options(joinedload(Account.splits))
+            .filter_by(book_id=book_id)
+            .all()
+        )
 
     # --------------------------------------------------------------------------
     # Transactions
@@ -220,10 +232,20 @@ class DAL:
         return txn
 
     def get_transaction(self, txn_id: str) -> Optional[Transaction]:
-        return self.session.query(Transaction).filter_by(id=txn_id).one_or_none()
+        return (
+            self.session.query(Transaction)
+            .options(joinedload(Transaction.splits).joinedload(Split.account))
+            .filter_by(id=txn_id)
+            .one_or_none()
+        )
 
     def list_transactions_for_book(self, book_id: str) -> List[Transaction]:
-        return self.session.query(Transaction).filter_by(book_id=book_id).all()
+        return (
+            self.session.query(Transaction)
+            .options(joinedload(Transaction.splits).joinedload(Split.account))
+            .filter_by(book_id=book_id)
+            .all()
+        )
 
     def query_for_unmatched_transactions_in_range(
         self,
@@ -243,7 +265,7 @@ class DAL:
                     Transaction.transaction_date >= start_date,
                     Transaction.transaction_date <= end_date,
                     Transaction.match_status == "n",
-                    Account.name.in_(accounts_to_match_for),
+                    Account.full_name.in_(accounts_to_match_for),
                 )
             )
             .options(joinedload(Transaction.splits).joinedload(Split.account))
