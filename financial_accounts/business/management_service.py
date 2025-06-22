@@ -7,7 +7,7 @@ from financial_accounts.db.models import Base
 class ManagementService(BaseService):
 
     def reset_database(self):
-        connection = BaseService.shared_session.connection()
+        connection = BaseService.shared_session.connection()  # type: ignore
         Base.metadata.drop_all(connection)
         Base.metadata.create_all(connection)
 

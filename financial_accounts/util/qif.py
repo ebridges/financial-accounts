@@ -31,6 +31,7 @@ class Qif:
         return self.init_from_qif_data(data)
 
     def init_from_qif_data(self, qif_data):
+        in_account_section = False
         current_transaction = OrderedDict()
         for line in qif_data:
             line = line.strip()

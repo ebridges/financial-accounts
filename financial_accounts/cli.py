@@ -15,7 +15,11 @@ DEFAULT_BOOK = "personal"
 '''
 CLI program for the `accounts` application.
 
-usage: cli.py [-h] [--db-url DB_URL] {init-db,init-book,add-account,list-accounts,book-transaction} ...
+usage: cli.py [-h] [--db-url DB_URL] COMMAND ...
+
+COMMAND is one of: {
+    init-db,init-book,add-account,list-accounts,book-transaction
+}
 
 Accounts CLI
 
@@ -78,6 +82,7 @@ def main():
         do_add_account(
             args.db_url,
             args.book_name,
+            args.parent_code,
             args.parent_name,
             args.acct_name,
             args.acct_fullname,
@@ -257,8 +262,8 @@ def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credi
             book_name=book_name,
             txn_date=txn_date,
             txn_desc=txn_desc,
-            debit_acct=debit_acct,
-            credit_acct=credit_acct,
+            to_acct=debit_acct,
+            from_acct=credit_acct,
             amount=amount,
         )
         print(
