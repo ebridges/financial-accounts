@@ -2,7 +2,7 @@ from typing import List
 from decimal import Decimal
 from datetime import datetime
 
-from financial_accounts.db.models import Transaction
+from financial_accounts.db.models import Transaction, Split
 from financial_accounts.business.base_service import BaseService
 
 
@@ -69,3 +69,41 @@ class TransactionService(BaseService):
 
     def get_all_transactions_for_book(self, book_id):
         return self.data_access.list_transactions_for_book(book_id=book_id)
+
+    def import_transactions_from_qif_data(self, transaction_data_list, account_service):
+        """
+        Import transactions from QIF data, resolving accounts within this service's session.
+        
+        Args:
+            transaction_data_list: List of transaction data dicts from qif.as_transaction_data()
+            account_service: AccountService instance (should share same session context)
+        
+        Returns:
+            List of imported transaction IDs
+        """
+        imported_ids = []
+        
+        for data in transaction_data_list:
+            transaction = Transaction()
+            transaction.book_id = data['book_id']
+            transaction.transaction_date = data['transaction_date']
+            transaction.transaction_description = data['transaction_description']
+            
+            transaction.splits = []
+            for split_data in data['splits']:
+                split = Split()
+                split.transaction = transaction
+                # Resolve account within this service's session context
+                split.account = account_service.lookup_account_by_name(
+                    data['book_id'], split_data['account_name']
+                )
+                split.amount = split_data['amount']
+                transaction.splits.append(split)
+            
+            try:
+                txn_id = self.insert_transaction(transaction)
+                imported_ids.append(txn_id)
+            except Exception as e:
+                raise Exception(f"Failed to import transaction '{transaction.transaction_description}': {e}")
+        
+        return imported_ids

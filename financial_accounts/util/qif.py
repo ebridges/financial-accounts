@@ -61,28 +61,51 @@ class Qif:
                     current_transaction[line_type] = line_data
         return self
 
-    def as_transactions(self, book_id, account_service):
+    def as_transaction_data(self, book_id):
+        """Convert QIF data to transaction data with account names (not objects)"""
         from_account = self.account_info[AcctName]
-        transactions = []
+        transaction_data = []
         for txn in self.transactions:
-            transaction = Transaction()
-            transaction.book_id = book_id
             txn_date = datetime.strptime(txn.get(TxnDate), "%m/%d/%Y").date()
-            transaction.transaction_date = txn_date
-            transaction.transaction_description = txn.get(TxnPayee)
-
             txn_amount = Decimal(txn.get(TxnAmount).strip())
+            
+            data = {
+                'book_id': book_id,
+                'transaction_date': txn_date,
+                'transaction_description': txn.get(TxnPayee),
+                'splits': [
+                    {
+                        'account_name': from_account,
+                        'amount': txn_amount
+                    },
+                    {
+                        'account_name': txn.get(TxnCategory),
+                        'amount': txn_amount * NEG_ONE
+                    }
+                ]
+            }
+            transaction_data.append(data)
+        return transaction_data
 
+    def as_transactions(self, book_id, account_service):
+        """Legacy method for backward compatibility - creates transactions with account resolution"""
+        transaction_data = self.as_transaction_data(book_id)
+        transactions = []
+        
+        for data in transaction_data:
+            transaction = Transaction()
+            transaction.book_id = data['book_id']
+            transaction.transaction_date = data['transaction_date']
+            transaction.transaction_description = data['transaction_description']
+            
             transaction.splits = []
-            split = Split()
-            split.transaction = transaction
-            split.account = account_service.lookup_account_by_name(book_id, from_account)
-            split.amount = txn_amount
-
-            split = Split()
-            split.transaction = transaction
-            split.account = account_service.lookup_account_by_name(book_id, txn.get(TxnCategory))
-            split.amount = txn_amount * NEG_ONE
-
+            for split_data in data['splits']:
+                split = Split()
+                split.transaction = transaction
+                # Resolve account within the same context as the caller
+                split.account = account_service.lookup_account_by_name(book_id, split_data['account_name'])
+                split.amount = split_data['amount']
+                transaction.splits.append(split)
+            
             transactions.append(transaction)
         return transactions
