@@ -20,18 +20,85 @@ This is a double entry accounting system that provides a robust personal finance
 5. **Reporting**
     - The schema supports queries and pivoting on **accounts**, **transactions**, and **splits**, essential for generating income/expense statements or custom reports.
 
-## 2. Schema
+## 2. Transaction matching
+
+### Transaction Matching in an Accounting Ledger
+
+**Transaction matching** is the process of comparing and reconciling individual transactions recorded in a financial ledger against external records (e.g. bank statements, invoices, receipts) to ensure accuracy and completeness.
+
+#### Key Steps:
+
+1. **Import Transactions**
+   * Load transactions from external sources (e.g., bank feeds, credit card statements).
+   * Standardize date, description, and amount formats.
+
+2. **Identify Matching Criteria**
+   * Matching fields include:
+     * Date (exact or within a tolerance window)
+     * Amount (exact match or net of fees)
+     * Payee/description
+
+3. **Match Transactions**
+   * This system attempts to match transactions automatically using predefined rules.
+
+4. **Review and Confirm**
+   * The system will flag exceptions or mismatches for investigation.
+
+5. **Post and Reconcile**
+   * Confirm matches in the ledger.
+   * Reconciliation status is updated (e.g., cleared, reconciled).
+   * Differences may be logged as adjustments or pending entries.
+
+#### Purpose and Benefits:
+* Ensures data integrity between internal ledgers and external financial sources.
+* Detects errors (e.g., duplicates, missing entries, fraud).
+* Supports month-end close, audit readiness, and regulatory compliance.
+
+### Transaction Matching in Personal Finance Context
+
+When managing personal finance records, matching typically occurs between:
+- Imported bank transactions (from personal & joint checking accounts, credit cards)
+- Internal ledger entries (manually entered or auto-generated for transfers and payments)
+
+Key matching scenarios:
+- Transfers between personal and joint checking accounts
+- Credit card payments made from checking accounts
+
+### Incorrect matching
+
+| Scenario                               | What Can Go Wrong                                                           | Result                                                                        |
+| -------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Mismatched transfer**                | A transfer from Joint to Personal is matched to an unrelated deposit        | Misrepresents income, confuses budgeting, undermines trust in shared finances |
+| **Double-matched credit card payment** | Payment is matched both to an expense and to a liability payment            | Double counting: overstates expenses or understates available balance         |
+| **One-side-only match**                | Credit card payment shows in checking but not matched to credit card ledger | Liability not reduced; credit card balance appears inflated                   |
+| **Wrong account match**                | Transfer to savings matched to investment income                            | Misclassifies transaction, corrupts category reports                          |
+| **Partial match**                      | \$1,500 payment matched to \$500 expense                                    | Remaining \$1,000 unaccounted for; reconciliation fails                       |
+
+#### Consequences
+- Inaccurate net worth or cash flow reports
+- Budgeting errors (e.g., showing more discretionary income than you have)
+- Misleading spending insights (e.g., "you spent $4,000 on groceries")
+- Duplicate or missing entries confuse audits, taxes, and personal financial planning
+
+#### Best practices
+- Match both sides of transfers and payments (from + to)
+- Use amount, date, and memo as match criteria
+- Avoid categorizing matched transfers as income or expenses
+- Reconcile regularly and flag one-sided or unmatched entries
+
+
+## 3. Schema
 
 ![](docs/img/schema-diagram.png)
 
-## 3. System design goals
+## 4. System design goals
 
 - The application stores data in a relational datamodel identified by a DB URL provided as an argument.
 - Implemented with a service based architecture supporting web and CLI user interfaces.
 - Ability to scale to hundreds of thousands of transactions per month.
 - Support a basic set of accounting reports (balances, expenses, periodic trends) as well as adhoc queries.
 
-## 4. Usage
+## 5. Usage
 
 ### Command line usage
 
