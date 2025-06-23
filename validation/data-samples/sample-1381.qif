@@ -1,0 +1,19 @@
+!Account
+NAssets:Checking Accounts:checking-chase-personal-1381
+TBank
+^
+!Type:Bank
+C
+D09/26/2022
+NN/A
+PCHASE CREDIT CRD AUTOPAY                    PPD ID: 4760039224
+T-620.00
+LLiabilities:Credit Cards:creditcard-chase-personal-6063
+^
+C
+D07/18/2022
+NN/A
+POnline Transfer to  CHK ...1605 transaction#: 14782136085 07/18
+T-500.00
+LAssets:Checking Accounts:checking-chase-personal-1605
+^

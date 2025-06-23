@@ -6,3 +6,4 @@ htmlcov/
 .aider*
 .env
 dist/
+validation/validation-test.db
