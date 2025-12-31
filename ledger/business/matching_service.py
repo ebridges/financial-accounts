@@ -4,9 +4,9 @@ from datetime import timedelta
 from typing import List, Dict
 from logging import info
 
-from financial_accounts.business.base_service import BaseService
-from financial_accounts.business.transaction_service import TransactionService
-from financial_accounts.db.models import Transaction, Account
+from ledger.business.base_service import BaseService
+from ledger.business.transaction_service import TransactionService
+from ledger.db.models import Transaction, Account
 
 DEFAULT_DATE_OFFSET = 1
 

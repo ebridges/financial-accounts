@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from financial_accounts.business.book_service import BookService
+from ledger.business.book_service import BookService
 
 
 @pytest.fixture

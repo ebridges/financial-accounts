@@ -3,10 +3,10 @@ import json
 import tempfile
 import os
 
-from financial_accounts.db.models import Base
-from financial_accounts.business.account_service import AccountService
-from financial_accounts.business.book_service import BookService
-from financial_accounts.business.management_service import ManagementService
+from ledger.db.models import Base
+from ledger.business.account_service import AccountService
+from ledger.business.book_service import BookService
+from ledger.business.management_service import ManagementService
 
 
 @pytest.fixture

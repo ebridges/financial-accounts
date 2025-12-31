@@ -3,11 +3,11 @@ import argparse
 import sys
 import os
 
-from financial_accounts.version import __version__
-from financial_accounts.business.transaction_service import TransactionService
-from financial_accounts.business.management_service import ManagementService
-from financial_accounts.business.account_service import AccountService
-from financial_accounts.business.book_service import BookService
+from ledger.version import __version__
+from ledger.business.transaction_service import TransactionService
+from ledger.business.management_service import ManagementService
+from ledger.business.account_service import AccountService
+from ledger.business.book_service import BookService
 
 DEFAULT_DB_URL = "sqlite:///db/accounting-system.db"
 DEFAULT_BOOK = "personal"

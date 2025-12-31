@@ -1,7 +1,7 @@
 import json
 
-from financial_accounts.business.base_service import BaseService
-from financial_accounts.db.models import Base
+from ledger.business.base_service import BaseService
+from ledger.db.models import Base
 
 
 class ManagementService(BaseService):

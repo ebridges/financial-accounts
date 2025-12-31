@@ -1,5 +1,5 @@
 import pytest
-from financial_accounts.business.base_service import BaseService
+from ledger.business.base_service import BaseService
 
 
 @pytest.fixture

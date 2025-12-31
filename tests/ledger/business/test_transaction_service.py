@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
-from financial_accounts.business.transaction_service import TransactionService
-from financial_accounts.db.models import Transaction
+from ledger.business.transaction_service import TransactionService
+from ledger.db.models import Transaction
 
 
 @pytest.fixture
