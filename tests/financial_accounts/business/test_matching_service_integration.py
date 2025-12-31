@@ -36,11 +36,16 @@ def setup_transactions() -> str:
     and would be targets for a match.
     The `row_id` column is for testing purposes to be able to link to a
     transaction that is later imported as being the match for test purposes.
+    
+    With the corrected enter_transaction() logic:
+    - from_acct (account column) = credit account (money leaves, gets -amount)
+    - to_acct (corresponding_account column) = debit account (money arrives, gets +amount)
+    - amount should be positive (the split signs are determined by from/to semantics)
     '''
     csv_text = f"""row_id,account,date,description,amount,corresponding_account
-1,{A_1381},2022-09-26,CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224,-620.00,{A_6063}
-2,{A_1381},2022-07-18,Online Transfer to CHK ...1605 transaction#: 14782136085 07/18,-500.00,{A_1605}
-3,{A_1605},2022-06-30,Online Transfer from CHK ...1381 transaction#: 18903209342,500.00,{A_1381}
+1,{A_1381},2022-09-26,CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224,620.00,{A_6063}
+2,{A_1381},2022-07-18,Online Transfer to CHK ...1605 transaction#: 14782136085 07/18,500.00,{A_1605}
+3,{A_1381},2022-06-30,Online Transfer from CHK ...1381 transaction#: 18903209342,500.00,{A_1605}
 """
     return csv_text
 
@@ -235,9 +240,10 @@ def transactions_to_import(services, setup_csv_file, import_csv_file):
             )
 
             # Create two splits for the transaction
+            # Note: Don't set transaction= in Split constructor as it auto-appends via backref
             amount = Decimal(row["amount"])
-            d = Split(transaction=txn, account_id=acct.id, amount=amount, account=acct)
-            c = Split(transaction=txn, account_id=corr_acct.id, amount=-amount, account=corr_acct)
+            d = Split(account_id=acct.id, amount=amount, account=acct)
+            c = Split(account_id=corr_acct.id, amount=-amount, account=corr_acct)
             txn.splits = [d, c]
 
             transactions_to_import.setdefault(acct, []).append(txn)

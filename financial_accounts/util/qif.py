@@ -101,10 +101,11 @@ class Qif:
             transaction.splits = []
             for split_data in data['splits']:
                 split = Split()
-                split.transaction = transaction
                 # Resolve account within the same context as the caller
                 split.account = account_service.lookup_account_by_name(book_id, split_data['account_name'])
+                split.account_id = split.account.id
                 split.amount = split_data['amount']
+                # Note: Don't set split.transaction as it auto-appends via SQLAlchemy backref
                 transaction.splits.append(split)
             
             transactions.append(transaction)

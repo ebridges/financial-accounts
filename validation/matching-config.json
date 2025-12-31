@@ -2,10 +2,12 @@
   "matching_rules": {
       "Assets:Checking Accounts:checking-chase-personal-1381": {
           "Liabilities:Credit Cards:creditcard-chase-personal-6063": {
-              "date_offset": 1,
+              "date_offset": 3,
               "description_patterns": [
                   "^AUTOMATIC PAYMENT - THANK(?: YOU)?$",
-                  "^Payment Thank You\\s?-\\s?(Web|Mobile)$"
+                  "^Payment Thank You\\s?-\\s?(Web|Mobile)$",
+                  "^CHASE CREDIT CRD AUTOPAY\\s+PPD ID:\\s*\\d+$",
+                  "^Payment to Chase card ending in \\d{4}\\s+\\d{2}/\\d{2}$"
               ]
           },
           "Assets:Checking Accounts:checking-chase-personal-1605": {

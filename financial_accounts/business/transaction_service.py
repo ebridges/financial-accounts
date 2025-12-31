@@ -42,8 +42,9 @@ class TransactionService(BaseService):
             memo=memo,
         )
 
-        self.data_access.create_split(transaction_id=txn.id, account_id=from_acct.id, amount=amt)
-        self.data_access.create_split(transaction_id=txn.id, account_id=to_acct.id, amount=-amt)
+        # In double-entry accounting: debit account gets +amount, credit account gets -amount
+        self.data_access.create_split(transaction_id=txn.id, account_id=to_acct.id, amount=amt)    # debit
+        self.data_access.create_split(transaction_id=txn.id, account_id=from_acct.id, amount=-amt)  # credit
 
         return txn.id
 
@@ -76,7 +77,7 @@ class TransactionService(BaseService):
         
         Args:
             transaction_data_list: List of transaction data dicts from qif.as_transaction_data()
-            account_service: AccountService instance (should share same session context)
+            account_service: AccountService instance (should share same session via constructor)
         
         Returns:
             List of imported transaction IDs
@@ -92,12 +93,13 @@ class TransactionService(BaseService):
             transaction.splits = []
             for split_data in data['splits']:
                 split = Split()
-                split.transaction = transaction
                 # Resolve account within this service's session context
                 split.account = account_service.lookup_account_by_name(
                     data['book_id'], split_data['account_name']
                 )
+                split.account_id = split.account.id
                 split.amount = split_data['amount']
+                # Note: Don't set split.transaction as it auto-appends via SQLAlchemy backref
                 transaction.splits.append(split)
             
             try:
