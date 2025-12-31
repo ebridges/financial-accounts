@@ -99,14 +99,18 @@ def test_create_account(dal, mock_session):
 
 
 def test_get_account(dal, mock_session):
-    mock_session.query().filter_by().one_or_none.return_value = Account(id="1", name="Test Account")
+    mock_session.query().options().filter_by().one_or_none.return_value = Account(
+        id="1", name="Test Account"
+    )
 
     account = dal.get_account("1")
     assert account.name == "Test Account"
 
 
 def test_list_accounts_for_book(dal, mock_session):
-    mock_session.query().filter_by().all.return_value = [Account(id="1", name="Test Account")]
+    mock_session.query().options().filter_by().all.return_value = [
+        Account(id="1", name="Test Account")
+    ]
 
     accounts = dal.list_accounts_for_book("1")
     assert len(accounts) == 1
@@ -126,7 +130,7 @@ def test_create_transaction(dal, mock_session):
 
 
 def test_get_transaction(dal, mock_session):
-    mock_session.query().filter_by().one_or_none.return_value = Transaction(
+    mock_session.query().options().filter_by().one_or_none.return_value = Transaction(
         id="1", transaction_description="Test Transaction"
     )
 
@@ -135,7 +139,7 @@ def test_get_transaction(dal, mock_session):
 
 
 def test_list_transactions_for_book(dal, mock_session):
-    mock_session.query().filter_by().all.return_value = [
+    mock_session.query().options().filter_by().all.return_value = [
         Transaction(id="1", transaction_description="Test Transaction")
     ]
 
@@ -245,7 +249,7 @@ def test_query_for_unmatched_transactions_in_range(mem_dal):
         book_id=book.id,
         start_date=date(2023, 10, 1),
         end_date=date(2023, 10, 5),
-        accounts_to_match_for=[account.name],
+        accounts_to_match_for=[account.full_name],
     )
     # transactions = mem_dal.get_transactions_in_range(date(2023, 10, 1), date(2023, 10, 5))
     assert len(transactions) == 3
@@ -258,7 +262,7 @@ def test_query_for_unmatched_transactions_in_range(mem_dal):
         book_id=book.id,
         start_date=date(2023, 10, 1),
         end_date=date(2023, 10, 10),
-        accounts_to_match_for=[account.name],
+        accounts_to_match_for=[account.full_name],
         reconciliation_status='c',
     )
 
