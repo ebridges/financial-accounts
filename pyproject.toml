@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "financial_accounts"
+name = "ledger"
 version = "v1.0.1"
 description = "A personal finance accounting system."
 authors = [ "Edward Bridges <github@eqbridges.com>",]
@@ -18,16 +18,16 @@ pytest-cov = "^6.0.0"
 gitpython = "^3.1.44"
 
 [tool.pytest.ini_options]
-addopts = [ "--cov=financial_accounts", "--cov-report=term", "--ignore=release.py", "--ignore=financial_accounts/version.py", "--ignore=financial_accounts/cli.py"]
+addopts = [ "--cov=ledger", "--cov-report=term", "--ignore=release.py", "--ignore=ledger/version.py", "--ignore=ledger/cli.py"]
 
 [tool.coverage.run]
 omit = [
     "release.py",
-    "financial_accounts/cli.py",
-    "financial_accounts/version.py",
-    "financial_accounts/__init__.py",
-    "financial_accounts/db/__init__.py",
-    "financial_accounts/business/__init__.py",
+    "ledger/cli.py",
+    "ledger/version.py",
+    "ledger/__init__.py",
+    "ledger/db/__init__.py",
+    "ledger/business/__init__.py",
 ]
 
 [tool.black]
@@ -43,7 +43,7 @@ extend-ignore = [ "B023", "E24", "E128", "E201", "E202", "E203", "E225", "E231",
 exclude = [ ".git", "__pycache__", "build", "dist", ".venv",]
 
 [tool.poetry.scripts]
-accounts-cli = "financial_accounts.cli:main"
+accounts-cli = "ledger.cli:main"
 
 [build-system]
 requires = [ "poetry-core",]

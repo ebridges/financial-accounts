@@ -2,8 +2,8 @@ from typing import List
 from decimal import Decimal
 from datetime import datetime
 
-from financial_accounts.db.models import Transaction, Split
-from financial_accounts.business.base_service import BaseService
+from ledger.db.models import Transaction, Split
+from ledger.business.base_service import BaseService
 
 
 class TransactionService(BaseService):

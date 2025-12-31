@@ -51,12 +51,12 @@ from collections import defaultdict, Counter
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from financial_accounts.business.book_service import BookService
-from financial_accounts.business.account_service import AccountService
-from financial_accounts.business.transaction_service import TransactionService
-from financial_accounts.business.management_service import ManagementService
-from financial_accounts.business.matching_service import MatchingService, MatchingRules
-from financial_accounts.util.qif import Qif
+from ledger.business.book_service import BookService
+from ledger.business.account_service import AccountService
+from ledger.business.transaction_service import TransactionService
+from ledger.business.management_service import ManagementService
+from ledger.business.matching_service import MatchingService, MatchingRules
+from ledger.util.qif import Qif
 
 # Configuration
 DB_URL = "sqlite:///comprehensive-test.db"

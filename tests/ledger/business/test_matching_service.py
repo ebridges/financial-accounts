@@ -1,12 +1,12 @@
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
-from financial_accounts.business.matching_service import (
+from ledger.business.matching_service import (
     DEFAULT_DATE_OFFSET,
     MatchingService,
     MatchingRules,
 )
-from financial_accounts.db.models import Account, Transaction, Split
+from ledger.db.models import Account, Transaction, Split
 
 
 @pytest.fixture
@@ -122,7 +122,7 @@ def matching_service(mock_matching_rules, mock_transaction_service):
 
 
 @patch(
-    "financial_accounts.business.matching_service.MatchingService.compare_splits", return_value=True
+    "ledger.business.matching_service.MatchingService.compare_splits", return_value=True
 )
 def test_is_match_success(
     mock_compare_splits, matching_service, mock_account, mock_transaction, mock_split
@@ -143,7 +143,7 @@ def test_is_match_success(
 
 
 @patch(
-    "financial_accounts.business.matching_service.MatchingService.compare_splits",
+    "ledger.business.matching_service.MatchingService.compare_splits",
     return_value=False,
 )
 def test_is_match_fails_on_splits(

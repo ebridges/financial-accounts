@@ -2,7 +2,7 @@
 from datetime import datetime
 from decimal import Decimal
 from collections import OrderedDict
-from financial_accounts.db.models import Transaction, Split
+from ledger.db.models import Transaction, Split
 
 AcctHeader = '!Account'
 AcctName = 'N'

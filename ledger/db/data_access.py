@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, text
 
-from financial_accounts.db.models import Book, Account, Transaction, Split
+from ledger.db.models import Book, Account, Transaction, Split
 
 
 # def check_for_circular_path(

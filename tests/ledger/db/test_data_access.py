@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
-from financial_accounts.db.data_access import DAL
-from financial_accounts.db.models import Base, Book, Account, Transaction, Split
+from ledger.db.data_access import DAL
+from ledger.db.models import Base, Book, Account, Transaction, Split
 
 
 @pytest.fixture

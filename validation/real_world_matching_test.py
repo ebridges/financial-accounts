@@ -45,12 +45,12 @@ from datetime import datetime, date
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from financial_accounts.business.book_service import BookService
-from financial_accounts.business.account_service import AccountService
-from financial_accounts.business.transaction_service import TransactionService
-from financial_accounts.business.management_service import ManagementService
-from financial_accounts.business.matching_service import MatchingService, MatchingRules
-from financial_accounts.util.qif import Qif
+from ledger.business.book_service import BookService
+from ledger.business.account_service import AccountService
+from ledger.business.transaction_service import TransactionService
+from ledger.business.management_service import ManagementService
+from ledger.business.matching_service import MatchingService, MatchingRules
+from ledger.util.qif import Qif
 
 # Configuration
 DB_URL = "sqlite:///real-world-test.db"
@@ -280,7 +280,7 @@ def run_credit_card_payment_matching(results):
         # Convert to Transaction objects within this session context
         test_transactions = []
         for data in test_transaction_data:
-            from financial_accounts.db.models import Transaction, Split
+            from ledger.db.models import Transaction, Split
             txn = Transaction()
             txn.book_id = data['book_id']
             txn.transaction_date = data['transaction_date']
@@ -378,7 +378,7 @@ def run_transfer_matching(results):
         # Convert to Transaction objects within this session context
         test_transactions = []
         for data in test_transaction_data:
-            from financial_accounts.db.models import Transaction, Split
+            from ledger.db.models import Transaction, Split
             txn = Transaction()
             txn.book_id = data['book_id']
             txn.transaction_date = data['transaction_date']
@@ -443,8 +443,11 @@ def run_final_integrity():
     """Test final system integrity"""
     print("\n⚖️  Testing final system integrity...")
     
-    with TransactionService().init_with_url(DB_URL) as txn_service:
-        book = txn_service.data_access.get_book_by_name(BOOK_NAME)
+    with (
+        AccountService().init_with_url(DB_URL) as account_service,
+        TransactionService().init_with_url(DB_URL) as txn_service
+    ):
+        book = account_service.data_access.get_book_by_name(BOOK_NAME)
         transactions = txn_service.get_all_transactions_for_book(book.id)
         
         # Check for duplicates
@@ -472,10 +475,10 @@ def run_final_integrity():
         print(f"  Unbalanced transactions: {len(unbalanced)}")
         
         # Note: Duplicates are common in real-world bank data (e.g., two identical purchases)
-        # So we just warn, not fail
+        # We report them but don't fail the test - they're not necessarily errors
         if duplicates:
             duplicate_details = [(d[0].id, d[1].id) for d in duplicates]
-            print(f"  ⚠️  Warning: Found {len(duplicates)} duplicate pairs: {duplicate_details}")
+            print(f"  ⚠️  Potential duplicates (may be legitimate): {duplicate_details}")
         
         if unbalanced:
             unbalanced_ids = [txn.id for txn in unbalanced]

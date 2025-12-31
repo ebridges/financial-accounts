@@ -16,7 +16,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import declarative_base, relationship
-from financial_accounts.db.updated_mixin import UpdatedAtMixin
+from ledger.db.updated_mixin import UpdatedAtMixin
 
 
 Base = declarative_base()

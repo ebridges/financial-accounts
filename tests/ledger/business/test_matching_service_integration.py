@@ -5,9 +5,9 @@ import csv
 import pytest
 from datetime import datetime
 from decimal import Decimal
-from financial_accounts.db.models import Base, Transaction, Split
-from financial_accounts.business.transaction_service import TransactionService
-from financial_accounts.business.matching_service import MatchingService, MatchingRules
+from ledger.db.models import Base, Transaction, Split
+from ledger.business.transaction_service import TransactionService
+from ledger.business.matching_service import MatchingService, MatchingRules
 
 TEST_DB_URL = "sqlite:///:memory:"
 
