@@ -3,6 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from collections import OrderedDict
 from ledger.db.models import Transaction, Split, Account
+from ledger.util.normalize import normalize_payee
 
 AcctHeader = '!Account'
 AcctName = 'N'
@@ -12,6 +13,7 @@ RecordBegin = 'C'
 TxnDate = 'D'
 TxnCheckNumber = 'N'
 TxnPayee = 'P'
+TxnPayeeNorm = 'B' # normalized payee, non-standard field
 TxnAmount = 'T'
 TxnCategory = 'L'
 RecordEnd = '^'
@@ -59,6 +61,9 @@ class Qif:
                     self.account_info[line_type] = line_data
                 else:
                     current_transaction[line_type] = line_data
+                    if line_type == TxnPayee:
+                        normalized_payee = normalize_payee(line_data)
+                        current_transaction[TxnPayeeNorm] = normalized_payee
         return self
 
     @staticmethod
@@ -77,6 +82,13 @@ class Qif:
     def get_payee(txn: OrderedDict) -> str:
         return txn.get(TxnPayee)
 
+    @staticmethod
+    def normalized_payee(txn: OrderedDict) -> None:
+        if TxnPayeeNorm in txn and txn[TxnPayeeNorm] and txn[TxnPayeeNorm].strip():
+            return txn[TxnPayeeNorm]
+        else:
+            return None
+
     def as_transaction_data(self, book_id):
         """Convert QIF data to transaction data with account names (not objects)"""
         from_account = self.account_info[AcctName]
@@ -89,6 +101,7 @@ class Qif:
                 'book_id': book_id,
                 'transaction_date': txn_date,
                 'transaction_description': txn.get(TxnPayee),
+                'payee_norm': txn.get(TxnPayeeNorm),
                 'splits': [
                     {
                         'account_name': from_account,
@@ -106,7 +119,7 @@ class Qif:
     def as_transactions(
         self,
         book_id: int,
-        resolve_account: Callable[[int, str], Optional[Account]]
+        resolve_account: Callable[[str], Optional[Account]]
     ) -> list:
         """
         Convert QIF data to Transaction objects.
@@ -127,6 +140,7 @@ class Qif:
             transaction.book_id = data['book_id']
             transaction.transaction_date = data['transaction_date']
             transaction.transaction_description = data['transaction_description']
+            transaction.payee_norm = data['payee_norm']
             
             transaction.splits = []
             for split_data in data['splits']:

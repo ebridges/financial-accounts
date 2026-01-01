@@ -131,9 +131,9 @@ class IngestService(BaseService):
         
         for txn in qif.transactions:
             if not Qif.get_category(txn):
-                payee = Qif.get_payee(txn)
+                payee = Qif.normalized_payee(txn)
                 result = categorize_svc.lookup_category_for_payee(
-                    normalize_payee(payee), book.id
+                    payee, book.id
                 )
                 if result:
                     category_name, _ = result
