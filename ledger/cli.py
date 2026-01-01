@@ -8,6 +8,8 @@ from ledger.business.transaction_service import TransactionService
 from ledger.business.management_service import ManagementService
 from ledger.business.account_service import AccountService
 from ledger.business.book_service import BookService
+from ledger.business.ingest_service import IngestService, IngestResult
+from ledger.business.categorize_service import CategorizeService
 
 DEFAULT_DB_URL = "sqlite:///db/accounting-system.db"
 DEFAULT_BOOK = "personal"
@@ -110,6 +112,27 @@ def main():
     elif args.command == "delete-transaction":
         do_delete_transaction(args.db_url, args.txn_id)
 
+    elif args.command == "ingest":
+        do_ingest(
+            args.db_url,
+            args.file_path,
+            args.book_name,
+            args.account,
+            args.no_archive,
+        )
+
+    elif args.command == "list-imports":
+        do_list_imports(args.db_url, args.book_name)
+
+    elif args.command == "categorize":
+        do_categorize(
+            args.db_url,
+            args.book_name,
+            args.account,
+            args.import_id,
+            args.dry_run,
+        )
+
     return 0
 
 
@@ -197,8 +220,53 @@ def parse_arguments():
     sp_book_txn.add_argument("--amount", "-a", required=True, help="Amount")
 
     # delete-transaction
-    sp_book_txn = subparsers.add_parser("delete-transaction", help="Delete a transaction by ID")
-    sp_book_txn.add_argument("--txn-id", "-T", required=True, help="Transaction ID")
+    sp_delete_txn = subparsers.add_parser("delete-transaction", help="Delete a transaction by ID")
+    sp_delete_txn.add_argument("--txn-id", "-T", required=True, help="Transaction ID")
+
+    # ingest
+    sp_ingest = subparsers.add_parser(
+        "ingest", help="Ingest a CSV or QIF file with file-level idempotency"
+    )
+    sp_ingest.add_argument("file_path", help="Path to CSV or QIF file to ingest")
+    sp_ingest.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
+    sp_ingest.add_argument(
+        "--account", "-a",
+        help="Account full name (required for CSV, optional for QIF which contains account info)"
+    )
+    sp_ingest.add_argument(
+        "--no-archive", action="store_true", default=False,
+        help="Skip archiving the source file"
+    )
+
+    # list-imports
+    sp_list_imports = subparsers.add_parser(
+        "list-imports", help="List all imported files for a book"
+    )
+    sp_list_imports.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
+
+    # categorize
+    sp_categorize = subparsers.add_parser(
+        "categorize", help="Categorize uncategorized transactions using rules"
+    )
+    sp_categorize.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
+    sp_categorize.add_argument(
+        "--account", "-a",
+        help="Limit to transactions for this account (full name)"
+    )
+    sp_categorize.add_argument(
+        "--import-id", "-i", type=int,
+        help="Limit to transactions from this import file ID"
+    )
+    sp_categorize.add_argument(
+        "--dry-run", "-n", action="store_true", default=False,
+        help="Preview categorization without making changes"
+    )
 
     return parser.parse_args()
 
@@ -289,6 +357,129 @@ def do_init_db(db_url, confirm):
         print(f"Database initialized at ({db_url}).")
     else:
         print('Resetting the database requires the "--confirm" flag.')
+
+
+def do_ingest(db_url, file_path, book_name, account, no_archive):
+    """Ingest a CSV or QIF file."""
+    # Determine file type from extension
+    _, ext = os.path.splitext(file_path)
+    ext = ext.lower()
+
+    with IngestService().init_with_url(db_url=db_url) as ingest_svc:
+        try:
+            if ext == '.csv':
+                if not account:
+                    print("Error: --account is required for CSV files")
+                    return 1
+                report = ingest_svc.ingest_csv(
+                    file_path=file_path,
+                    book_name=book_name,
+                    account_full_name=account,
+                    archive=not no_archive,
+                )
+            elif ext == '.qif':
+                report = ingest_svc.ingest_qif(
+                    file_path=file_path,
+                    book_name=book_name,
+                    archive=not no_archive,
+                )
+            else:
+                print(f"Error: Unsupported file type '{ext}'. Use .csv or .qif")
+                return 1
+
+            # Print result
+            if report.result == IngestResult.IMPORTED:
+                print(f"✓ {report.message}")
+                print(f"  Import ID: {report.import_file_id}")
+                print(f"  Transactions: {report.transactions_imported}")
+                print(f"  Coverage: {report.coverage_start} to {report.coverage_end}")
+                if report.archive_path:
+                    print(f"  Archived to: {report.archive_path}")
+            elif report.result == IngestResult.SKIPPED_DUPLICATE:
+                print(f"⊘ {report.message}")
+                print(f"  Existing import ID: {report.import_file_id}")
+            elif report.result == IngestResult.HASH_MISMATCH:
+                print(f"⚠ {report.message}")
+                print(f"  Existing import ID: {report.import_file_id}")
+                return 1
+
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
+    return 0
+
+
+def do_list_imports(db_url, book_name):
+    """List all imported files for a book."""
+    with IngestService().init_with_url(db_url=db_url) as ingest_svc:
+        try:
+            imports = ingest_svc.list_imports(book_name)
+
+            if not imports:
+                print(f"No imports found for book '{book_name}'.")
+                return 0
+
+            print(f"Imports for book '{book_name}':")
+            print("-" * 80)
+            for imp in imports:
+                print(f"  ID: {imp.id}")
+                print(f"    Filename: {imp.filename}")
+                print(f"    Type: {imp.source_type}")
+                print(f"    Coverage: {imp.coverage_start} to {imp.coverage_end}")
+                print(f"    Transactions: {imp.row_count}")
+                print(f"    Imported: {imp.created_at}")
+                if imp.archive_path:
+                    print(f"    Archive: {imp.archive_path}")
+                print()
+
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
+    return 0
+
+
+def do_categorize(db_url, book_name, account, import_id, dry_run):
+    """Categorize uncategorized transactions."""
+    with CategorizeService().init_with_url(db_url=db_url) as cat_svc:
+        try:
+            report = cat_svc.categorize_transactions(
+                book_name=book_name,
+                account_full_name=account,
+                import_file_id=import_id,
+                dry_run=dry_run,
+            )
+
+            # Print summary
+            mode = "[DRY RUN] " if dry_run else ""
+            print(f"{mode}Categorization Results for book '{book_name}':")
+            print("-" * 60)
+            print(f"  Transactions processed: {report.transactions_processed}")
+            print(f"  Categorized from cache: {report.categorized_from_cache}")
+            print(f"  Categorized from rules: {report.categorized_from_rules}")
+            print(f"  Uncategorized (fallback): {report.categorized_fallback}")
+            print(f"  Success rate: {report.success_rate:.1f}%")
+
+            if report.errors:
+                print(f"\nErrors:")
+                for err in report.errors:
+                    print(f"  - {err}")
+
+            # Show uncategorized payees if any fallbacks
+            if report.categorized_fallback > 0 and not dry_run:
+                print(f"\nUncategorized payees (consider adding rules):")
+                uncategorized = cat_svc.get_uncategorized_payees(book_name)
+                for payee, count in uncategorized[:10]:  # Top 10
+                    print(f"  [{count:3d}] {payee}")
+                if len(uncategorized) > 10:
+                    print(f"  ... and {len(uncategorized) - 10} more")
+
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
+    return 0
 
 
 def ensure_subdirs_for_sqlite(db_url: str):

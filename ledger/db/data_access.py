@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, text
 
-from ledger.db.models import Book, Account, Transaction, Split
+from ledger.db.models import Book, Account, Transaction, Split, ImportFile, CategoryCache
 
 
 # def check_for_circular_path(
@@ -353,6 +353,181 @@ class DAL:
 
     def list_splits_for_account(self, account_id: str) -> List[Split]:
         return self.session.query(Split).filter_by(account_id=account_id).all()
+
+    # --------------------------------------------------------------------------
+    # ImportFile
+    # --------------------------------------------------------------------------
+    def create_import_file(
+        self,
+        book_id: int,
+        account_id: int,
+        filename: str,
+        source_type: str,
+        file_hash: str,
+        source_path: Optional[str] = None,
+        archive_path: Optional[str] = None,
+        coverage_start=None,
+        coverage_end=None,
+        row_count: Optional[int] = None,
+    ) -> ImportFile:
+        """Create a new import file record."""
+        import_file = ImportFile(
+            book_id=book_id,
+            account_id=account_id,
+            filename=filename,
+            source_path=source_path,
+            archive_path=archive_path,
+            source_type=source_type,
+            file_hash=file_hash,
+            coverage_start=coverage_start,
+            coverage_end=coverage_end,
+            row_count=row_count,
+        )
+        self.session.add(import_file)
+        self.session.commit()
+        return import_file
+
+    def get_import_file(self, import_file_id: int) -> Optional[ImportFile]:
+        """Get an import file by ID."""
+        return self.session.query(ImportFile).filter_by(id=import_file_id).one_or_none()
+
+    def get_import_file_by_scope(
+        self, book_id: int, account_id: int, filename: str
+    ) -> Optional[ImportFile]:
+        """Get an import file by its unique scope (book, account, filename)."""
+        return (
+            self.session.query(ImportFile)
+            .filter_by(book_id=book_id, account_id=account_id, filename=filename)
+            .one_or_none()
+        )
+
+    def list_import_files_for_book(self, book_id: int) -> List[ImportFile]:
+        """List all import files for a book."""
+        return (
+            self.session.query(ImportFile)
+            .filter_by(book_id=book_id)
+            .order_by(ImportFile.created_at.desc())
+            .all()
+        )
+
+    def list_import_files_for_account(self, account_id: int) -> List[ImportFile]:
+        """List all import files for an account."""
+        return (
+            self.session.query(ImportFile)
+            .filter_by(account_id=account_id)
+            .order_by(ImportFile.created_at.desc())
+            .all()
+        )
+
+    def update_import_file(self, import_file_id: int, **kwargs) -> Optional[ImportFile]:
+        """Update an import file record."""
+        import_file = self.session.query(ImportFile).filter_by(id=import_file_id).one_or_none()
+        if not import_file:
+            return None
+
+        for field in [
+            "filename", "source_path", "archive_path", "source_type",
+            "file_hash", "coverage_start", "coverage_end", "row_count"
+        ]:
+            if field in kwargs:
+                setattr(import_file, field, kwargs[field])
+
+        self.session.commit()
+        return import_file
+
+    # --------------------------------------------------------------------------
+    # CategoryCache
+    # --------------------------------------------------------------------------
+    def get_category_from_cache(self, payee_norm: str) -> Optional[CategoryCache]:
+        """Look up a category by normalized payee."""
+        return self.session.query(CategoryCache).filter_by(payee_norm=payee_norm).one_or_none()
+
+    def set_category_cache(self, payee_norm: str, account_id: int) -> CategoryCache:
+        """Set or update a category cache entry."""
+        existing = self.get_category_from_cache(payee_norm)
+        if existing:
+            existing.account_id = account_id
+            existing.hit_count += 1
+            existing.last_seen_at = datetime.now()
+            self.session.commit()
+            return existing
+        else:
+            cache_entry = CategoryCache(
+                payee_norm=payee_norm,
+                account_id=account_id,
+                hit_count=1,
+            )
+            self.session.add(cache_entry)
+            self.session.commit()
+            return cache_entry
+
+    def increment_cache_hit(self, payee_norm: str) -> None:
+        """Increment the hit count for a cache entry."""
+        entry = self.get_category_from_cache(payee_norm)
+        if entry:
+            entry.hit_count += 1
+            entry.last_seen_at = datetime.now()
+            self.session.commit()
+
+    def list_category_cache(self) -> List[CategoryCache]:
+        """List all category cache entries ordered by hit count."""
+        return (
+            self.session.query(CategoryCache)
+            .order_by(CategoryCache.hit_count.desc())
+            .all()
+        )
+
+    # --------------------------------------------------------------------------
+    # Transaction queries for categorization
+    # --------------------------------------------------------------------------
+    def list_uncategorized_transactions(
+        self,
+        book_id: int,
+        account_id: Optional[int] = None,
+        import_file_id: Optional[int] = None,
+    ) -> List[Transaction]:
+        """
+        List transactions that need categorization.
+        
+        A transaction needs categorization if its counter-split points to an
+        'Uncategorized' account or a placeholder account.
+        """
+        query = (
+            self.session.query(Transaction)
+            .options(joinedload(Transaction.splits).joinedload(Split.account))
+            .filter(Transaction.book_id == book_id)
+        )
+        
+        if import_file_id:
+            query = query.filter(Transaction.import_file_id == import_file_id)
+        
+        transactions = query.all()
+        
+        # Filter for uncategorized (where counter-split is to placeholder or 'Uncategorized')
+        uncategorized = []
+        for txn in transactions:
+            if account_id:
+                # Check if this transaction involves the specified account
+                account_ids = [s.account_id for s in txn.splits]
+                if account_id not in account_ids:
+                    continue
+            
+            # Check if any split is to a placeholder account or 'Uncategorized'
+            for split in txn.splits:
+                if split.account.placeholder or 'uncategorized' in split.account.full_name.lower():
+                    uncategorized.append(txn)
+                    break
+        
+        return uncategorized
+
+    def list_transactions_for_import_file(self, import_file_id: int) -> List[Transaction]:
+        """List all transactions from a specific import file."""
+        return (
+            self.session.query(Transaction)
+            .options(joinedload(Transaction.splits).joinedload(Split.account))
+            .filter(Transaction.import_file_id == import_file_id)
+            .all()
+        )
 
     # --------------------------------------------------------------------------
     # Management

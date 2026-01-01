@@ -39,6 +39,7 @@ class Book(Base, UpdatedAtMixin):
 
     accounts = relationship("Account", back_populates="book", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="book", cascade="all, delete-orphan")
+    import_files = relationship("ImportFile", back_populates="book", cascade="all, delete-orphan")
 
     def __str__(self):
         return self.name
@@ -99,15 +100,20 @@ class Transaction(Base, UpdatedAtMixin):
     book_id = Column(
         Integer, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
     )
+    import_file_id = Column(
+        Integer, ForeignKey('import_file.id', ondelete="SET NULL", onupdate="RESTRICT"), nullable=True
+    )
     transaction_date = Column(Date, nullable=False)
     entry_date = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     transaction_description = Column(Text, nullable=False)
+    payee_norm = Column(String(255), nullable=True)  # normalized payee for categorization cache
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
     match_status = Column(
         String(1), server_default='n', nullable=False, default='n'
     )  # n=not, m=matched
     memo = Column(String(1024), nullable=True)
     book = relationship("Book", back_populates="transactions")
+    import_file = relationship("ImportFile", back_populates="transactions")
     splits = relationship("Split", back_populates="transaction", cascade="all, delete-orphan")
 
     def corresponding_account(self, candidate: Account):
@@ -170,3 +176,67 @@ class Split(Base, UpdatedAtMixin):
 
     transaction = relationship("Transaction", back_populates="splits")
     account = relationship("Account", back_populates="splits")
+
+
+class ImportFile(Base, UpdatedAtMixin):
+    """
+    Tracks imported files for file-level idempotency.
+    
+    Each import file is uniquely identified by (book_id, account_id, filename).
+    Re-importing the same file (by hash) is a no-op.
+    """
+    __tablename__ = 'import_file'
+    id = Column(Integer, autoincrement=True, primary_key=True)
+    book_id = Column(
+        Integer, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
+    account_id = Column(
+        Integer, ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
+    filename = Column(String(255), nullable=False)  # logical name for replacement scope
+    source_path = Column(String(1024))  # original file path
+    archive_path = Column(String(1024))  # archived file path
+    source_type = Column(String(50), nullable=False)  # 'chase_csv', 'qif'
+    file_hash = Column(String(64), nullable=False)  # sha256 of file bytes
+    coverage_start = Column(Date)  # min transaction date in file
+    coverage_end = Column(Date)  # max transaction date in file
+    row_count = Column(Integer)  # number of transactions imported
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('book_id', 'account_id', 'filename', name='uq_import_file_scope'),
+    )
+
+    book = relationship("Book", back_populates="import_files")
+    account = relationship("Account")
+    transactions = relationship("Transaction", back_populates="import_file")
+
+    def __str__(self):
+        return f"ImportFile({self.filename}, {self.source_type}, {self.coverage_start}-{self.coverage_end})"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class CategoryCache(Base, UpdatedAtMixin):
+    """
+    Cache for payee → category mappings to speed up categorization.
+    
+    When a payee is successfully categorized, store the mapping here
+    for fast lookup on subsequent imports.
+    """
+    __tablename__ = 'category_cache'
+    payee_norm = Column(String(255), primary_key=True)  # normalized payee string
+    account_id = Column(
+        Integer, ForeignKey('account.id', ondelete="CASCADE", onupdate="RESTRICT"), nullable=False
+    )
+    last_seen_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    hit_count = Column(Integer, default=1)
+
+    account = relationship("Account")
+
+    def __str__(self):
+        return f"CategoryCache({self.payee_norm} -> {self.account_id})"
+
+    def __repr__(self):
+        return self.__str__()
