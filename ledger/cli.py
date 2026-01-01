@@ -9,7 +9,6 @@ from ledger.business.management_service import ManagementService
 from ledger.business.account_service import AccountService
 from ledger.business.book_service import BookService
 from ledger.business.ingest_service import IngestService, IngestResult
-from ledger.business.categorize_service import CategorizeService
 
 DEFAULT_DB_URL = "sqlite:///db/accounting-system.db"
 DEFAULT_BOOK = "personal"
@@ -124,15 +123,6 @@ def main():
     elif args.command == "list-imports":
         do_list_imports(args.db_url, args.book_name)
 
-    elif args.command == "categorize":
-        do_categorize(
-            args.db_url,
-            args.book_name,
-            args.account,
-            args.import_id,
-            args.dry_run,
-        )
-
     return 0
 
 
@@ -246,26 +236,6 @@ def parse_arguments():
     )
     sp_list_imports.add_argument(
         "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
-    )
-
-    # categorize
-    sp_categorize = subparsers.add_parser(
-        "categorize", help="Categorize uncategorized transactions using rules"
-    )
-    sp_categorize.add_argument(
-        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
-    )
-    sp_categorize.add_argument(
-        "--account", "-a",
-        help="Limit to transactions for this account (full name)"
-    )
-    sp_categorize.add_argument(
-        "--import-id", "-i", type=int,
-        help="Limit to transactions from this import file ID"
-    )
-    sp_categorize.add_argument(
-        "--dry-run", "-n", action="store_true", default=False,
-        help="Preview categorization without making changes"
     )
 
     return parser.parse_args()
@@ -391,10 +361,18 @@ def do_ingest(db_url, file_path, book_name, account, no_archive):
             if report.result == IngestResult.IMPORTED:
                 print(f"✓ {report.message}")
                 print(f"  Import ID: {report.import_file_id}")
-                print(f"  Transactions: {report.transactions_imported}")
+                print(f"  Transactions imported: {report.transactions_imported}")
+                if report.transactions_matched > 0:
+                    print(f"  Transactions matched: {report.transactions_matched}")
+                if report.transactions_categorized > 0:
+                    print(f"  Auto-categorized: {report.transactions_categorized}")
                 print(f"  Coverage: {report.coverage_start} to {report.coverage_end}")
                 if report.archive_path:
                     print(f"  Archived to: {report.archive_path}")
+                if report.errors:
+                    print(f"  Errors:")
+                    for err in report.errors:
+                        print(f"    - {err}")
             elif report.result == IngestResult.SKIPPED_DUPLICATE:
                 print(f"⊘ {report.message}")
                 print(f"  Existing import ID: {report.import_file_id}")
@@ -432,48 +410,6 @@ def do_list_imports(db_url, book_name):
                 if imp.archive_path:
                     print(f"    Archive: {imp.archive_path}")
                 print()
-
-        except ValueError as e:
-            print(f"Error: {e}")
-            return 1
-
-    return 0
-
-
-def do_categorize(db_url, book_name, account, import_id, dry_run):
-    """Categorize uncategorized transactions."""
-    with CategorizeService().init_with_url(db_url=db_url) as cat_svc:
-        try:
-            report = cat_svc.categorize_transactions(
-                book_name=book_name,
-                account_full_name=account,
-                import_file_id=import_id,
-                dry_run=dry_run,
-            )
-
-            # Print summary
-            mode = "[DRY RUN] " if dry_run else ""
-            print(f"{mode}Categorization Results for book '{book_name}':")
-            print("-" * 60)
-            print(f"  Transactions processed: {report.transactions_processed}")
-            print(f"  Categorized from cache: {report.categorized_from_cache}")
-            print(f"  Categorized from rules: {report.categorized_from_rules}")
-            print(f"  Uncategorized (fallback): {report.categorized_fallback}")
-            print(f"  Success rate: {report.success_rate:.1f}%")
-
-            if report.errors:
-                print(f"\nErrors:")
-                for err in report.errors:
-                    print(f"  - {err}")
-
-            # Show uncategorized payees if any fallbacks
-            if report.categorized_fallback > 0 and not dry_run:
-                print(f"\nUncategorized payees (consider adding rules):")
-                uncategorized = cat_svc.get_uncategorized_payees(book_name)
-                for payee, count in uncategorized[:10]:  # Top 10
-                    print(f"  [{count:3d}] {payee}")
-                if len(uncategorized) > 10:
-                    print(f"  ... and {len(uncategorized) - 10} more")
 
         except ValueError as e:
             print(f"Error: {e}")

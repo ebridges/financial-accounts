@@ -297,7 +297,6 @@ class ChaseCsvParser:
             lines.append('NN/A')  # Check number placeholder
             lines.append(f"P{txn['description']}")
             lines.append(f"T{txn['amount']}")
-            lines.append(f"L{UNCATEGORIZED_ACCOUNT}")  # Category placeholder
             lines.append('^')
         
         return '\n'.join(lines)

@@ -477,49 +477,6 @@ class DAL:
             .all()
         )
 
-    # --------------------------------------------------------------------------
-    # Transaction queries for categorization
-    # --------------------------------------------------------------------------
-    def list_uncategorized_transactions(
-        self,
-        book_id: int,
-        account_id: Optional[int] = None,
-        import_file_id: Optional[int] = None,
-    ) -> List[Transaction]:
-        """
-        List transactions that need categorization.
-        
-        A transaction needs categorization if its counter-split points to an
-        'Uncategorized' account or a placeholder account.
-        """
-        query = (
-            self.session.query(Transaction)
-            .options(joinedload(Transaction.splits).joinedload(Split.account))
-            .filter(Transaction.book_id == book_id)
-        )
-        
-        if import_file_id:
-            query = query.filter(Transaction.import_file_id == import_file_id)
-        
-        transactions = query.all()
-        
-        # Filter for uncategorized (where counter-split is to placeholder or 'Uncategorized')
-        uncategorized = []
-        for txn in transactions:
-            if account_id:
-                # Check if this transaction involves the specified account
-                account_ids = [s.account_id for s in txn.splits]
-                if account_id not in account_ids:
-                    continue
-            
-            # Check if any split is to a placeholder account or 'Uncategorized'
-            for split in txn.splits:
-                if split.account.placeholder or 'uncategorized' in split.account.full_name.lower():
-                    uncategorized.append(txn)
-                    break
-        
-        return uncategorized
-
     def list_transactions_for_import_file(self, import_file_id: int) -> List[Transaction]:
         """List all transactions from a specific import file."""
         return (

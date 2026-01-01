@@ -86,11 +86,29 @@ class MatchingService(BaseService):
 
     def import_transactions(
         self, book_id: str, import_for: Account, to_import: List[Transaction]
-    ) -> None:
+    ) -> Dict[str, int]:
         '''
         Import a list of transactions into the book identified by `book_id` into the given account.
+        
+        For each transaction:
+        - Check if it matches an existing transaction in the ledger
+        - If matched: mark the existing transaction as matched (don't insert duplicate)
+        - If not matched: add the transaction to the ledger
+        
+        Returns:
+            Dict with counts: {'imported': N, 'matched': N}
         '''
-        matchable_accounts = self.rules.matchable_accounts(import_for)
+        result = {'imported': 0, 'matched': 0}
+        
+        try:
+            matchable_accounts = self.rules.matchable_accounts(import_for)
+        except KeyError:
+            # No matching rules for this account - just insert all
+            for txn in to_import:
+                self.add_transaction_to_ledger(txn)
+                result['imported'] += 1
+            return result
+        
         candidates = self.batch_query_candidates(book_id, to_import, matchable_accounts)
 
         for txn_import in to_import:
@@ -99,9 +117,13 @@ class MatchingService(BaseService):
                 if matched:
                     self.mark_matched(txn_candidate)
                     info(f'Transaction {txn_candidate} matched.')
+                    result['matched'] += 1
                     break
             else:
                 self.add_transaction_to_ledger(txn_import)
+                result['imported'] += 1
+        
+        return result
 
     def is_match(
         self, import_for: Account, txn_import: Transaction, txn_candidate: Transaction

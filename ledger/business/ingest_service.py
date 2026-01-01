@@ -2,24 +2,35 @@
 """
 High-level ingestion service for importing financial data files.
 
-Orchestrates the lower-level services (TransactionService, AccountService)
-and utilities (ChaseCsvParser, Qif, ArchiveService) to provide file-level
-idempotent import with archiving.
+Orchestrates the lower-level services (TransactionService, CategorizeService,
+MatchingService) and utilities (ChaseCsvParser, Qif, ArchiveService) to 
+provide file-level idempotent import with:
+- Automatic categorization for transactions without a category (L field absent)
+- Transfer/duplicate matching against existing ledger entries (if matching rules configured)
+- Archiving of source files
+
+Note: Categorization only applies when a transaction has NO category.
+Existing categories (including 'Expenses:Uncategorized') are preserved as-is.
 """
 import hashlib
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import List, Optional, Tuple
 from enum import Enum
+from logging import getLogger
 
 from ledger.business.base_service import BaseService
 from ledger.business.transaction_service import TransactionService
-from ledger.business.account_service import AccountService
+from ledger.business.matching_service import MatchingService
 from ledger.business.archive_service import ArchiveService
+from ledger.business.categorize_service import CategorizeService
+from ledger.config import CATEGORY_RULES_PATH
 from ledger.util.chase_csv import ChaseCsvParser
 from ledger.util.qif import Qif
-from ledger.db.models import Transaction, Split, ImportFile
+from ledger.db.models import Transaction, Split, ImportFile, Account
+
+logger = getLogger(__name__)
 
 
 class IngestResult(Enum):
@@ -35,10 +46,13 @@ class IngestReport:
     result: IngestResult
     import_file_id: Optional[int] = None
     transactions_imported: int = 0
+    transactions_matched: int = 0
+    transactions_categorized: int = 0
     coverage_start: Optional[date] = None
     coverage_end: Optional[date] = None
     archive_path: Optional[str] = None
     message: str = ""
+    errors: List[str] = field(default_factory=list)
 
 
 class IngestService(BaseService):
@@ -48,22 +62,39 @@ class IngestService(BaseService):
     Composes lower-level services to:
     1. Parse CSV/QIF files
     2. Check for duplicate imports (file-level idempotency)
-    3. Archive source files
-    4. Import transactions
-    5. Track import metadata
+    3. Apply categorization rules for uncategorized transactions
+    4. Detect and mark matching/transfer transactions in existing ledger
+    5. Archive source files
+    6. Track import metadata
     
     Usage:
+        # Basic usage (categorization only, no matching)
         with IngestService().init_with_url(DB_URL) as ingest_svc:
-            report = ingest_svc.ingest_csv(
-                file_path='downloads/chase-checking.csv',
-                book_name='personal',
-                account_full_name='Assets:Checking Accounts:checking-chase-personal-1381'
+            report = ingest_svc.ingest_qif(
+                file_path='downloads/statement.qif',
+                book_name='personal'
             )
+        
+        # With matching enabled (requires matching rules)
+        from ledger.business.matching_service import MatchingRules
+        matching_rules = MatchingRules('matching-config.json')
+        
+        with IngestService(matching_rules=matching_rules).init_with_url(DB_URL) as ingest_svc:
+            report = ingest_svc.ingest_qif(...)
     """
     
-    def __init__(self, session=None, archive_service: Optional[ArchiveService] = None):
+    def __init__(
+        self,
+        session=None,
+        archive_service: Optional[ArchiveService] = None,
+        matching_rules=None,  # Optional[MatchingRules]
+        category_rules_path: str = CATEGORY_RULES_PATH,
+    ):
         super().__init__(session=session)
         self.archive_service = archive_service or ArchiveService()
+        self.matching_rules = matching_rules
+        self.category_rules_path = category_rules_path
+        self._categorize_service = None  # Lazy init to share session
     
     def ingest_csv(
         self,
@@ -160,19 +191,25 @@ class IngestService(BaseService):
             row_count=len(transaction_data),
         )
         
-        # Import transactions
-        transactions_imported = self._import_transaction_data(
-            book.id, import_file.id, transaction_data
+        # Import transactions with categorization and matching
+        result = self._import_with_categorization_and_matching(
+            book_id=book.id,
+            import_account=account,
+            import_file_id=import_file.id,
+            transaction_data=transaction_data,
         )
         
         return IngestReport(
             result=IngestResult.IMPORTED,
             import_file_id=import_file.id,
-            transactions_imported=transactions_imported,
+            transactions_imported=result['imported'],
+            transactions_matched=result['matched'],
+            transactions_categorized=result['categorized'],
             coverage_start=coverage_start,
             coverage_end=coverage_end,
             archive_path=archive_path,
-            message=f"Successfully imported {transactions_imported} transactions"
+            message=f"Imported {result['imported']}, matched {result['matched']}, categorized {result['categorized']}",
+            errors=result.get('errors', [])
         )
     
     def ingest_qif(
@@ -186,6 +223,14 @@ class IngestService(BaseService):
         Ingest a QIF file.
         
         The account is determined from the QIF file's account header.
+        
+        Flow:
+        1. Parse QIF file
+        2. Check for duplicate imports (idempotency)
+        3. Apply categorization for any uncategorized transactions
+        4. Check for matching transfers in existing ledger
+        5. Insert non-matched transactions
+        6. Archive source file
         
         Args:
             file_path: Path to the QIF file
@@ -271,39 +316,180 @@ class IngestService(BaseService):
             row_count=len(transaction_data),
         )
         
-        # Import transactions (QIF already has categories in L line)
-        transactions_imported = self._import_transaction_data(
-            book.id, import_file.id, transaction_data
+        # Import transactions with categorization and matching
+        result = self._import_with_categorization_and_matching(
+            book_id=book.id,
+            import_account=account,
+            import_file_id=import_file.id,
+            transaction_data=transaction_data,
         )
         
         return IngestReport(
             result=IngestResult.IMPORTED,
             import_file_id=import_file.id,
-            transactions_imported=transactions_imported,
+            transactions_imported=result['imported'],
+            transactions_matched=result['matched'],
+            transactions_categorized=result['categorized'],
             coverage_start=coverage_start,
             coverage_end=coverage_end,
             archive_path=archive_path,
-            message=f"Successfully imported {transactions_imported} transactions"
+            message=f"Imported {result['imported']}, matched {result['matched']}, categorized {result['categorized']}",
+            errors=result.get('errors', [])
         )
     
-    def _import_transaction_data(
+    def _import_with_categorization_and_matching(
         self,
         book_id: int,
+        import_account: Account,
         import_file_id: int,
         transaction_data: List[dict],
-    ) -> int:
+    ) -> dict:
         """
-        Import transaction data dicts into the database.
+        Import transaction data with categorization and matching.
+        
+        Flow for each transaction:
+        1. Check if category is Uncategorized -> apply categorization rules
+        2. Build Transaction object
+        3. Check for matching existing transaction (if matching rules configured)
+        4. Either mark existing as matched OR insert new transaction
         
         Args:
             book_id: Book ID
+            import_account: The account being imported into
             import_file_id: Import file ID for provenance tracking
             transaction_data: List of transaction data dicts from parser
         
         Returns:
-            Number of transactions imported
+            Dict with counts: {'imported': N, 'matched': N, 'categorized': N, 'errors': [...]}
         """
-        imported_count = 0
+        result = {
+            'imported': 0,
+            'matched': 0,
+            'categorized': 0,
+            'errors': [],
+        }
+        
+        # Step 1: Apply categorization to transaction data where needed
+        categorized_data = self._apply_categorization(book_id, transaction_data)
+        result['categorized'] = categorized_data['categorized_count']
+        
+        # Step 2: Build Transaction objects
+        transactions = self._build_transaction_objects(
+            book_id, import_file_id, categorized_data['transaction_data']
+        )
+        
+        # Step 3 & 4: Use MatchingService for smart import with duplicate detection
+        if self.matching_rules:
+            txn_service = TransactionService(session=self.session)
+            txn_service.data_access = self.data_access  # Share session
+            
+            matching_service = MatchingService(
+                matching_rules=self.matching_rules,
+                transaction_service=txn_service
+            )
+            matching_service.data_access = self.data_access  # Share session
+            
+            # Use import_transactions which handles matching and insertion
+            import_result = matching_service.import_transactions(
+                book_id=book_id,
+                import_for=import_account,
+                to_import=transactions
+            )
+            result['imported'] = import_result['imported']
+            result['matched'] = import_result['matched']
+        else:
+            # Direct insert (no matching rules configured)
+            for txn in transactions:
+                try:
+                    self.data_access.insert_transaction(txn)
+                    result['imported'] += 1
+                except Exception as e:
+                    result['errors'].append(f"Failed to import '{txn.transaction_description}': {e}")
+        
+        return result
+    
+    def _get_categorize_service(self) -> CategorizeService:
+        """Get or create CategorizeService with shared session."""
+        if self._categorize_service is None:
+            self._categorize_service = CategorizeService(
+                session=self.session,
+                rules_path=self.category_rules_path
+            )
+            self._categorize_service.data_access = self.data_access  # Share session
+        return self._categorize_service
+    
+    def _apply_categorization(
+        self,
+        book_id: int,
+        transaction_data: List[dict],
+    ) -> dict:
+        """
+        Apply categorization rules to uncategorized transactions.
+        
+        Uses CategorizeService.lookup_category_for_payee() for tiered lookup.
+        Modifies transaction_data in place to update category account names.
+        
+        Args:
+            book_id: Book ID for looking up accounts
+            transaction_data: List of transaction data dicts
+        
+        Returns:
+            Dict with categorized_count and updated transaction_data
+        """
+        categorized_count = 0
+        categorize_svc = self._get_categorize_service()
+        
+        for data in transaction_data:
+            # Find the counter-split (not the import account split)
+            for split_data in data['splits']:
+                account_name = split_data['account_name']
+                
+                # Check if this split needs categorization
+                if not account_name:  # Only categorize if L field was absent
+                    # Get payee_norm for categorization lookup
+                    payee_norm = data.get('payee_norm')
+                    if not payee_norm:
+                        payee_norm = ChaseCsvParser.normalize_payee(
+                            data['transaction_description']
+                        )
+                        data['payee_norm'] = payee_norm
+                    
+                    # Use CategorizeService for tiered lookup (cache -> rules -> None)
+                    result = categorize_svc.lookup_category_for_payee(payee_norm, book_id)
+                    
+                    if result:
+                        category_name, source = result
+                        split_data['account_name'] = category_name
+                        categorized_count += 1
+                        logger.debug(f"Categorized '{payee_norm}' from {source} -> {category_name}")
+                    else:
+                        # Tier 3: Fallback - keep existing category (may already be Uncategorized)
+                        logger.debug(f"No category found for '{payee_norm}', keeping as {account_name}")
+        
+        return {
+            'categorized_count': categorized_count,
+            'transaction_data': transaction_data,
+        }
+    
+    
+    def _build_transaction_objects(
+        self,
+        book_id: int,
+        import_file_id: int,
+        transaction_data: List[dict],
+    ) -> List[Transaction]:
+        """
+        Convert transaction data dicts to Transaction objects.
+        
+        Args:
+            book_id: Book ID
+            import_file_id: Import file ID for provenance
+            transaction_data: List of transaction data dicts
+        
+        Returns:
+            List of Transaction objects with resolved accounts
+        """
+        transactions = []
         
         for data in transaction_data:
             transaction = Transaction()
@@ -330,10 +516,9 @@ class IngestService(BaseService):
                 split.amount = split_data['amount']
                 transaction.splits.append(split)
             
-            self.data_access.insert_transaction(transaction)
-            imported_count += 1
+            transactions.append(transaction)
         
-        return imported_count
+        return transactions
     
     def list_imports(self, book_name: str) -> List[ImportFile]:
         """
@@ -363,4 +548,3 @@ class IngestService(BaseService):
             for chunk in iter(lambda: f.read(8192), b''):
                 sha256.update(chunk)
         return sha256.hexdigest()
-
