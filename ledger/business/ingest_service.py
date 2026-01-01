@@ -140,7 +140,8 @@ class IngestService(BaseService):
                     Qif.set_category(txn, category_name)
         
         # Convert to Transaction objects
-        def resolve_account(book_id, name):
+        def resolve_account(name):
+            book_id = book.id
             return self.data_access.get_account_by_fullname_for_book(book_id, name)
         
         transactions = qif.as_transactions(book.id, resolve_account)
