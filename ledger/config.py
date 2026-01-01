@@ -23,3 +23,8 @@ UNCATEGORIZED_ACCOUNT = os.environ.get(
     'Expenses:Uncategorized'
 )
 
+# Path to matching rules JSON file
+MATCHING_RULES_PATH = os.environ.get(
+    'LEDGER_MATCHING_RULES_PATH',
+    'etc/matching-rules.json'
+)
