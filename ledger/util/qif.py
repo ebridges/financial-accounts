@@ -61,6 +61,22 @@ class Qif:
                     current_transaction[line_type] = line_data
         return self
 
+    @staticmethod
+    def get_category(txn: OrderedDict) -> str:
+        if TxnCategory in txn and txn[TxnCategory] and txn[TxnCategory].strip():
+            return txn[TxnCategory]
+        else:
+            return None
+
+    @staticmethod
+    def set_category(txn: OrderedDict, category_account: str) -> None:
+        if category_account:
+            txn[TxnCategory] = category_account
+
+    @staticmethod
+    def get_payee(txn: OrderedDict) -> str:
+        return txn.get(TxnPayee)
+
     def as_transaction_data(self, book_id):
         """Convert QIF data to transaction data with account names (not objects)"""
         from_account = self.account_info[AcctName]
