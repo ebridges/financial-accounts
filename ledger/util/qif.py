@@ -1,8 +1,8 @@
-# from typing import List
+from typing import Callable, Optional
 from datetime import datetime
 from decimal import Decimal
 from collections import OrderedDict
-from ledger.db.models import Transaction, Split
+from ledger.db.models import Transaction, Split, Account
 
 AcctHeader = '!Account'
 AcctName = 'N'
@@ -103,8 +103,22 @@ class Qif:
             transaction_data.append(data)
         return transaction_data
 
-    def as_transactions(self, book_id, account_service):
-        """Legacy method for backward compatibility - creates transactions with account resolution"""
+    def as_transactions(
+        self,
+        book_id: int,
+        resolve_account: Callable[[int, str], Optional[Account]]
+    ) -> list:
+        """
+        Convert QIF data to Transaction objects.
+        
+        Args:
+            book_id: Book ID for the transactions
+            resolve_account: Callback (book_id, account_name) -> Account
+                             Should raise or return None if account not found.
+        
+        Returns:
+            List of Transaction objects with resolved accounts
+        """
         transaction_data = self.as_transaction_data(book_id)
         transactions = []
         
@@ -116,12 +130,18 @@ class Qif:
             
             transaction.splits = []
             for split_data in data['splits']:
+                account_name = split_data['account_name']
+                account = resolve_account(book_id, account_name)
+                if not account:
+                    raise ValueError(
+                        f"Account '{account_name}' not found for transaction "
+                        f"'{data['transaction_description']}'"
+                    )
+                
                 split = Split()
-                # Resolve account within the same context as the caller
-                split.account = account_service.lookup_account_by_name(book_id, split_data['account_name'])
-                split.account_id = split.account.id
+                split.account = account
+                split.account_id = account.id
                 split.amount = split_data['amount']
-                # Note: Don't set split.transaction as it auto-appends via SQLAlchemy backref
                 transaction.splits.append(split)
             
             transactions.append(transaction)

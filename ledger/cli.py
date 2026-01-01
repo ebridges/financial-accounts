@@ -112,13 +112,7 @@ def main():
         do_delete_transaction(args.db_url, args.txn_id)
 
     elif args.command == "ingest":
-        do_ingest(
-            args.db_url,
-            args.file_path,
-            args.book_name,
-            args.account,
-            args.no_archive,
-        )
+        do_ingest(args.db_url, args.file_path, args.book_name)
 
     elif args.command == "list-imports":
         do_list_imports(args.db_url, args.book_name)
@@ -215,19 +209,11 @@ def parse_arguments():
 
     # ingest
     sp_ingest = subparsers.add_parser(
-        "ingest", help="Ingest a CSV or QIF file with file-level idempotency"
+        "ingest", help="Ingest a QIF file with file-level idempotency"
     )
-    sp_ingest.add_argument("file_path", help="Path to CSV or QIF file to ingest")
+    sp_ingest.add_argument("file_path", help="Path to QIF file to ingest")
     sp_ingest.add_argument(
         "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
-    )
-    sp_ingest.add_argument(
-        "--account", "-a",
-        help="Account full name (required for CSV, optional for QIF which contains account info)"
-    )
-    sp_ingest.add_argument(
-        "--no-archive", action="store_true", default=False,
-        help="Skip archiving the source file"
     )
 
     # list-imports
@@ -329,33 +315,17 @@ def do_init_db(db_url, confirm):
         print('Resetting the database requires the "--confirm" flag.')
 
 
-def do_ingest(db_url, file_path, book_name, account, no_archive):
-    """Ingest a CSV or QIF file."""
-    # Determine file type from extension
+def do_ingest(db_url, file_path, book_name):
+    """Ingest a QIF file."""
+    # Verify file extension
     _, ext = os.path.splitext(file_path)
-    ext = ext.lower()
+    if ext.lower() != '.qif':
+        print(f"Error: Expected .qif file, got '{ext}'")
+        return 1
 
     with IngestService().init_with_url(db_url=db_url) as ingest_svc:
         try:
-            if ext == '.csv':
-                if not account:
-                    print("Error: --account is required for CSV files")
-                    return 1
-                report = ingest_svc.ingest_csv(
-                    file_path=file_path,
-                    book_name=book_name,
-                    account_full_name=account,
-                    archive=not no_archive,
-                )
-            elif ext == '.qif':
-                report = ingest_svc.ingest_qif(
-                    file_path=file_path,
-                    book_name=book_name,
-                    archive=not no_archive,
-                )
-            else:
-                print(f"Error: Unsupported file type '{ext}'. Use .csv or .qif")
-                return 1
+            report = ingest_svc.ingest_qif(file_path, book_name)
 
             # Print result
             if report.result == IngestResult.IMPORTED:
@@ -364,15 +334,6 @@ def do_ingest(db_url, file_path, book_name, account, no_archive):
                 print(f"  Transactions imported: {report.transactions_imported}")
                 if report.transactions_matched > 0:
                     print(f"  Transactions matched: {report.transactions_matched}")
-                if report.transactions_categorized > 0:
-                    print(f"  Auto-categorized: {report.transactions_categorized}")
-                print(f"  Coverage: {report.coverage_start} to {report.coverage_end}")
-                if report.archive_path:
-                    print(f"  Archived to: {report.archive_path}")
-                if report.errors:
-                    print(f"  Errors:")
-                    for err in report.errors:
-                        print(f"    - {err}")
             elif report.result == IngestResult.SKIPPED_DUPLICATE:
                 print(f"⊘ {report.message}")
                 print(f"  Existing import ID: {report.import_file_id}")
@@ -407,8 +368,6 @@ def do_list_imports(db_url, book_name):
                 print(f"    Coverage: {imp.coverage_start} to {imp.coverage_end}")
                 print(f"    Transactions: {imp.row_count}")
                 print(f"    Imported: {imp.created_at}")
-                if imp.archive_path:
-                    print(f"    Archive: {imp.archive_path}")
                 print()
 
         except ValueError as e:

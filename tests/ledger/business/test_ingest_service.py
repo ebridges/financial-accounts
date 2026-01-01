@@ -3,7 +3,7 @@
 import pytest
 import tempfile
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from datetime import date
 
 from ledger.business.ingest_service import IngestService, IngestResult, IngestReport
@@ -64,9 +64,6 @@ class TestIngestReport:
             result=IngestResult.IMPORTED,
             import_file_id=1,
             transactions_imported=10,
-            coverage_start=date(2024, 1, 1),
-            coverage_end=date(2024, 1, 31),
-            archive_path='/archive/test.csv',
             message='Success'
         )
 
@@ -102,24 +99,32 @@ class TestIngestServiceIdempotency:
         """Create mock data access layer."""
         dal = MagicMock()
         dal.get_book_by_name.return_value = MagicMock(id=1, name='test')
-        dal.get_account_by_fullname_for_book.return_value = MagicMock(id=1, full_name='Test:Account')
+        dal.get_account_by_fullname_for_book.return_value = MagicMock(id=1, full_name='Assets:Checking')
         return dal
 
     @pytest.fixture
-    def csv_content(self):
-        return """Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #
-DEBIT,01/15/2024,TEST TRANSACTION,-100.00,ACH_DEBIT,1000.00,
+    def qif_content(self):
+        return """!Account
+NAssets:Checking
+TBank
+^
+!Type:Bank
+D01/15/2024
+PTEST TRANSACTION
+T-100.00
+LExpenses:Food
+^
 """
 
-    def test_skip_duplicate_same_hash(self, mock_data_access, csv_content):
+    def test_skip_duplicate_same_hash(self, mock_data_access, qif_content):
         """Same file (by hash) should be skipped."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-            f.write(csv_content)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
+            f.write(qif_content)
             f.flush()
-            csv_path = f.name
+            qif_path = f.name
 
         try:
-            file_hash = IngestService._compute_file_hash(csv_path)
+            file_hash = IngestService._compute_file_hash(qif_path)
 
             # Mock existing import with same hash
             mock_existing = MagicMock()
@@ -129,27 +134,22 @@ DEBIT,01/15/2024,TEST TRANSACTION,-100.00,ACH_DEBIT,1000.00,
 
             service = IngestService()
             service.data_access = mock_data_access
-            service.archive_service = MagicMock()
 
-            report = service.ingest_csv(
-                file_path=csv_path,
-                book_name='test',
-                account_full_name='Test:Account'
-            )
+            report = service.ingest_qif(qif_path, 'test')
 
             assert report.result == IngestResult.SKIPPED_DUPLICATE
             assert report.import_file_id == 5
             # Verify no transactions were inserted
             mock_data_access.insert_transaction.assert_not_called()
         finally:
-            os.unlink(csv_path)
+            os.unlink(qif_path)
 
-    def test_hash_mismatch_different_hash(self, mock_data_access, csv_content):
+    def test_hash_mismatch_different_hash(self, mock_data_access, qif_content):
         """Same filename but different hash should report mismatch."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-            f.write(csv_content)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
+            f.write(qif_content)
             f.flush()
-            csv_path = f.name
+            qif_path = f.name
 
         try:
             # Mock existing import with different hash
@@ -160,25 +160,20 @@ DEBIT,01/15/2024,TEST TRANSACTION,-100.00,ACH_DEBIT,1000.00,
 
             service = IngestService()
             service.data_access = mock_data_access
-            service.archive_service = MagicMock()
 
-            report = service.ingest_csv(
-                file_path=csv_path,
-                book_name='test',
-                account_full_name='Test:Account'
-            )
+            report = service.ingest_qif(qif_path, 'test')
 
             assert report.result == IngestResult.HASH_MISMATCH
             assert report.import_file_id == 5
         finally:
-            os.unlink(csv_path)
+            os.unlink(qif_path)
 
-    def test_new_file_imported(self, mock_data_access, csv_content):
+    def test_new_file_imported(self, mock_data_access, qif_content):
         """New file should be imported successfully."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-            f.write(csv_content)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
+            f.write(qif_content)
             f.flush()
-            csv_path = f.name
+            qif_path = f.name
 
         try:
             # No existing import
@@ -191,19 +186,48 @@ DEBIT,01/15/2024,TEST TRANSACTION,-100.00,ACH_DEBIT,1000.00,
 
             service = IngestService()
             service.data_access = mock_data_access
-            service.archive_service = MagicMock()
-            service.archive_service.archive_csv_with_qif.return_value = ('/archive/test.csv', '/archive/test.qif')
-            service.archive_service.get_account_slug_from_full_name.return_value = 'test-account'
 
-            report = service.ingest_csv(
-                file_path=csv_path,
-                book_name='test',
-                account_full_name='Test:Account'
-            )
+            report = service.ingest_qif(qif_path, 'test')
 
             assert report.result == IngestResult.IMPORTED
             assert report.import_file_id == 10
             mock_data_access.create_import_file.assert_called_once()
         finally:
-            os.unlink(csv_path)
+            os.unlink(qif_path)
 
+    def test_book_not_found_raises(self, qif_content):
+        """Missing book should raise ValueError."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
+            f.write(qif_content)
+            f.flush()
+            qif_path = f.name
+
+        try:
+            mock_dal = MagicMock()
+            mock_dal.get_book_by_name.return_value = None
+
+            service = IngestService()
+            service.data_access = mock_dal
+
+            with pytest.raises(ValueError, match="Book 'test' not found"):
+                service.ingest_qif(qif_path, 'test')
+        finally:
+            os.unlink(qif_path)
+
+    def test_account_not_found_raises(self, mock_data_access, qif_content):
+        """Missing account should raise ValueError."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
+            f.write(qif_content)
+            f.flush()
+            qif_path = f.name
+
+        try:
+            mock_data_access.get_account_by_fullname_for_book.return_value = None
+
+            service = IngestService()
+            service.data_access = mock_data_access
+
+            with pytest.raises(ValueError, match="Account .* not found"):
+                service.ingest_qif(qif_path, 'test')
+        finally:
+            os.unlink(qif_path)

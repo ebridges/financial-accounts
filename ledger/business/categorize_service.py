@@ -12,7 +12,6 @@ automatically assign categories to transactions that lack one.
 """
 import json
 import re
-from logging import warning
 from typing import List, Dict, Optional, Tuple
 
 from ledger.business.base_service import BaseService
@@ -153,7 +152,7 @@ class CategorizeService(BaseService):
             if category_account:
                 if update_cache:
                     self.data_access.increment_cache_hit(payee_norm)
-                return (category_account, 'cache')
+                return (category_account.full_name, 'cache')
         
         # Tier 2: Apply regex rules
         matched_category = self.rules.match(payee_norm)
@@ -166,9 +165,7 @@ class CategorizeService(BaseService):
                 if update_cache:
                     # Cache this match for future lookups
                     self.data_access.set_category_cache(payee_norm, category_account.id)
-                return (category_account, 'rule')
-            else:
-                warning(f"Category {matched_category} found for payee {payee_norm} but account not found")
-
+                return (matched_category, 'rule')
+        
         # Tier 3: No match - return None, let caller handle fallback
         return None
