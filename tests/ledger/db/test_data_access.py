@@ -28,6 +28,7 @@ def mem_session():
     yield session
     session.close()
     Base.metadata.drop_all(engine)
+    engine.dispose()
 
 
 @pytest.fixture
@@ -46,7 +47,9 @@ def test_create_book(dal, mock_session):
 
 
 def test_get_book(dal, mock_session):
-    mock_session.query().filter_by().one_or_none.return_value = Book(id="1", name="Test Book")
+    mock_book = MagicMock(spec=Book)
+    mock_book.name = "Test Book"
+    mock_session.query().filter_by().one_or_none.return_value = mock_book
 
     book = dal.get_book("1")
     assert book.name == "Test Book"

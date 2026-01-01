@@ -112,7 +112,11 @@ def main():
         do_delete_transaction(args.db_url, args.txn_id)
 
     elif args.command == "ingest":
-        do_ingest(args.db_url, args.file_path, args.book_name)
+        do_ingest(
+            args.db_url,
+            args.file_path,
+            args.book_name,
+        )
 
     elif args.command == "list-imports":
         do_list_imports(args.db_url, args.book_name)
@@ -317,15 +321,20 @@ def do_init_db(db_url, confirm):
 
 def do_ingest(db_url, file_path, book_name):
     """Ingest a QIF file."""
-    # Verify file extension
+    # Verify file type
     _, ext = os.path.splitext(file_path)
-    if ext.lower() != '.qif':
-        print(f"Error: Expected .qif file, got '{ext}'")
+    ext = ext.lower()
+    
+    if ext != '.qif':
+        print(f"Error: Unsupported file type '{ext}'. Use .qif")
         return 1
 
     with IngestService().init_with_url(db_url=db_url) as ingest_svc:
         try:
-            report = ingest_svc.ingest_qif(file_path, book_name)
+            report = ingest_svc.ingest_qif(
+                file_path=file_path,
+                book_name=book_name,
+            )
 
             # Print result
             if report.result == IngestResult.IMPORTED:

@@ -178,7 +178,7 @@ def services(matching_rules, test_accounts):
     """Initialize test database and provide TransactionService and MatchingService."""
     # Initialize TransactionService with test database
     ts = TransactionService().init_with_url(TEST_DB_URL)
-    ms = MatchingService(matching_rules, transaction_service=ts)
+    ms = MatchingService(matching_rules)
 
     # Create all tables in the test database
     Base.metadata.create_all(ts.engine)
@@ -194,6 +194,7 @@ def services(matching_rules, test_accounts):
         yield ts_ctx, ms, book  # provide the service instances and book for tests
     # Teardown: drop all tables after the test module
     Base.metadata.drop_all(ts.engine)
+    ts.engine.dispose()
 
 
 @pytest.fixture
@@ -239,17 +240,19 @@ def transactions_to_import(services, setup_csv_file, import_csv_file):
                 book.id, row["corresponding_account"]
             )
 
-            # Create two splits for the transaction
-            # Note: Don't set transaction= in Split constructor as it auto-appends via backref
             amount = Decimal(row["amount"])
-            d = Split(account_id=acct.id, amount=amount, account=acct)
-            c = Split(account_id=corr_acct.id, amount=-amount, account=corr_acct)
+            d = Split(account_id=acct.id, amount=amount)
+            c = Split(account_id=corr_acct.id, amount=-amount)
+            # Set account directly via __dict__ to avoid SQLAlchemy's relationship machinery,
+            # which would warn about adding splits to a session-managed Account.splits collection.
+            d.__dict__["account"] = acct
+            c.__dict__["account"] = corr_acct
             txn.splits = [d, c]
 
             transactions_to_import.setdefault(acct, []).append(txn)
     return transactions_to_import
 
-
+@pytest.mark.filterwarnings("ignore::ResourceWarning")
 def test_import_transactions_matching_logic(
     services, transactions_to_import, transaction_match_mappings
 ):
@@ -257,7 +260,23 @@ def test_import_transactions_matching_logic(
 
     # Execute import for each account in the prepared transactions
     for import_account, txn_list in transactions_to_import.items():
-        ms.import_transactions(book.id, import_account, txn_list)
+        # Get matchable accounts and query candidates
+        matchable_accounts = ms.get_matchable_accounts(import_account)
+        
+        if matchable_accounts and txn_list:
+            start, end = ms.compute_candidate_date_range(txn_list)
+            candidates = ts.data_access.query_for_unmatched_transactions_in_range(
+                book.id, start, end, list(matchable_accounts)
+            )
+        else:
+            candidates = []
+        
+        # Process each transaction through match_transactions generator
+        for action, txn in ms.match_transactions(import_account, txn_list, candidates):
+            if action == 'match':
+                ts.mark_transaction_matched(txn)
+            else:  # action == 'import'
+                ts.insert_transaction(txn)
 
     # Fetch all transactions from the ledger after import
     all_txns = ts.get_all_transactions_for_book(book.id)

@@ -58,9 +58,8 @@ class MatchingRules:
     ```
     '''
 
-    def __init__(self):
-        matching_rules = MATCHING_RULES_PATH
-        with open(matching_rules, 'r') as file:
+    def __init__(self, rules_path: str = MATCHING_RULES_PATH):
+        with open(rules_path, 'r') as file:
             self.rules = json.load(fp=file)
 
     def matchable_accounts(self, account: Account) -> set:
