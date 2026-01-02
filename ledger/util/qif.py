@@ -176,6 +176,8 @@ class Qif:
                 # Setting split.account triggers bidirectional relationship which causes
                 # SAWarning when Split is not yet in session
                 split.account_id = account.id
+                # Store account as transient attribute for matching (not persisted)
+                split._account_cache = account
                 split.amount = split_data['amount']
                 transaction.splits.append(split)
             

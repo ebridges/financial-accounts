@@ -139,10 +139,14 @@ class Transaction(Base, UpdatedAtMixin):
             )
 
         for split in self.splits:
-            if split.account.full_name != candidate.full_name:
-                return (
-                    split.account
-                )  # Return the account from the split that does not match the given account
+            # Use cached account if relationship not loaded (for unsaved transactions)
+            acct = getattr(split, '_account_cache', None) or split.account
+            if acct is None:
+                raise CorrespondingSplitNotFoundError(
+                    f"Split {split.id} has no account loaded for transaction {self.id}"
+                )
+            if acct.full_name != candidate.full_name:
+                return acct  # Return the account from the split that does not match the given account
 
         raise CorrespondingSplitNotFoundError(
             f"No corresponding split found for account {candidate.id} in transaction {self.id}"
