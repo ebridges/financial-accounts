@@ -11,13 +11,12 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 
+from ledger.business.book_context import BookContext
 from ledger.business.matching_service import MatchingService
 from ledger.business.categorize_service import CategorizeService
-from ledger.config import CATEGORY_RULES_PATH
+from ledger.config import CATEGORY_RULES_PATH, UNCATEGORIZED_ACCOUNT
 from ledger.util.qif import Qif
 from ledger.db.models import ImportFile
-
-from ledger.business.book_context import BookContext
 
 
 class IngestResult(Enum):
@@ -87,7 +86,7 @@ class IngestService:
         # Categorize transactions where L field is missing
         categorize_svc = CategorizeService(ctx=self._ctx, rules_path=self.category_rules_path)
         categorized_count = 0
-        
+
         for txn in qif.transactions:
             if not Qif.get_category(txn):
                 payee = Qif.normalized_payee(txn)
@@ -96,6 +95,9 @@ class IngestService:
                     category_name, _ = result
                     Qif.set_category(txn, category_name)
                     categorized_count += 1
+                else:
+                    # Default to Uncategorized when no category can be determined
+                    Qif.set_category(txn, UNCATEGORIZED_ACCOUNT)
         
         # Convert to Transaction objects
         def resolve_account(name):

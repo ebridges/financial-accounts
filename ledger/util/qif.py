@@ -21,6 +21,18 @@ RecordEnd = '^'
 
 NEG_ONE = Decimal("-1")
 
+DATE_FORMATS = ["%m/%d/%Y", "%m-%d-%Y"]
+
+
+def parse_qif_date(date_str: str):
+    """Parse a QIF date string, trying multiple formats."""
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Date '{date_str}' does not match any supported format: {DATE_FORMATS}")
+
 
 class Qif:
     def __init__(self):
@@ -94,7 +106,7 @@ class Qif:
         from_account = self.account_info[AcctName]
         transaction_data = []
         for txn in self.transactions:
-            txn_date = datetime.strptime(txn.get(TxnDate), "%m/%d/%Y").date()
+            txn_date = parse_qif_date(txn.get(TxnDate))
             txn_amount = Decimal(txn.get(TxnAmount).strip())
             
             data = {
