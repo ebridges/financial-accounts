@@ -15,7 +15,7 @@ from logging import getLogger
 from ledger.business.book_context import BookContext
 
 logger = getLogger(__name__)
-from ledger.business.matching_service import MatchingService
+from ledger.business.matching_service import MatchingService, MatchingRules
 from ledger.business.categorize_service import CategorizeService
 from ledger.config import CATEGORY_RULES_PATH, UNCATEGORIZED_ACCOUNT, MATCHING_RULES_PATH
 from ledger.util.qif import Qif
@@ -134,9 +134,10 @@ class IngestService:
         # Match and insert
         stats = {'imported': 0, 'matched': 0, 'categorized': categorized_count}
         
-        if self.matching_rules:
+        if self.matching_rules and os.path.exists(self.matching_rules):
             logger.debug("Matching enabled - checking for transfer matches")
-            matching_svc = MatchingService(self.matching_rules)
+            rules = MatchingRules(self.matching_rules)
+            matching_svc = MatchingService(rules)
             accounts_to_query = matching_svc.get_matchable_accounts(account)
             
             if accounts_to_query:
