@@ -431,7 +431,10 @@ def test_comprehensive_import_and_matching(qif_file, results):
         book = account_service.data_access.get_book_by_name(BOOK_NAME)
         
         # Convert QIF to transactions
-        transactions_to_import = qif.as_transactions(book.id, account_service)
+        def resolve_account(name):
+            return account_service.data_access.get_account_by_fullname_for_book(book.id, name)
+        
+        transactions_to_import = qif.as_transactions(book.id, resolve_account)
         print(f"  QIF contains {len(transactions_to_import)} transactions to import")
         
         # Get the import account

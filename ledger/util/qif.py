@@ -1,7 +1,9 @@
-from typing import Callable, Optional
+# from typing import List
 from datetime import datetime
 from decimal import Decimal
 from collections import OrderedDict
+from typing import Callable
+
 from ledger.db.models import Transaction, Split, Account
 from ledger.util.normalize import normalize_payee
 
@@ -62,9 +64,11 @@ class Qif:
                 else:
                     current_transaction[line_type] = line_data
                     if line_type == TxnPayee:
-                        normalized_payee = normalize_payee(line_data)
-                        current_transaction[TxnPayeeNorm] = normalized_payee
+                        current_transaction[TxnPayeeNorm] = normalize_payee(line_data)
         return self
+
+    def account(self) -> str:
+        return self.account_info[AcctName]
 
     @staticmethod
     def get_category(txn: OrderedDict) -> str:
@@ -79,15 +83,12 @@ class Qif:
             txn[TxnCategory] = category_account
 
     @staticmethod
-    def get_payee(txn: OrderedDict) -> str:
+    def payee(txn: OrderedDict) -> str:
         return txn.get(TxnPayee)
 
     @staticmethod
-    def normalized_payee(txn: OrderedDict) -> None:
-        if TxnPayeeNorm in txn and txn[TxnPayeeNorm] and txn[TxnPayeeNorm].strip():
-            return txn[TxnPayeeNorm]
-        else:
-            return None
+    def normalized_payee(txn: OrderedDict) -> str:
+        return txn[TxnPayeeNorm]
 
     def as_transaction_data(self, book_id):
         """Convert QIF data to transaction data with account names (not objects)"""
@@ -117,17 +118,14 @@ class Qif:
         return transaction_data
 
     def as_transactions(
-        self,
-        book_id: int,
-        resolve_account: Callable[[str], Optional[Account]]
+        self, book_id: int, resolve_account: Callable[[str], Account]
     ) -> list:
         """
         Convert QIF data to Transaction objects.
         
         Args:
             book_id: Book ID for the transactions
-            resolve_account: Callback (book_id, account_name) -> Account
-                             Should raise or return None if account not found.
+            resolve_account: Callback (account_name) -> Account
         
         Returns:
             List of Transaction objects with resolved accounts
@@ -144,15 +142,10 @@ class Qif:
             
             transaction.splits = []
             for split_data in data['splits']:
-                account_name = split_data['account_name']
-                account = resolve_account(book_id, account_name)
-                if not account:
-                    raise ValueError(
-                        f"Account '{account_name}' not found for transaction "
-                        f"'{data['transaction_description']}'"
-                    )
-                
                 split = Split()
+                account = resolve_account(split_data['account_name'])
+                if not account:
+                    raise ValueError(f"Account '{split_data['account_name']}' not found")
                 split.account = account
                 split.account_id = account.id
                 split.amount = split_data['amount']
