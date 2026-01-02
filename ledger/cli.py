@@ -312,8 +312,8 @@ def do_delete_transaction(db_url, book_name, txn_id):
 def do_init_db(db_url, confirm):
     # DROP and CREATE all tables (optional drop step if you truly want a fresh start)
     if confirm:
-        mgmt_service = ManagementService().init_with_url(db_url=db_url)
-        mgmt_service.reset_database()
+        with ManagementService().init_with_url(db_url=db_url) as mgmt_service:
+            mgmt_service.reset_database()
         print(f"Database initialized at ({db_url}).")
     else:
         print('Resetting the database requires the "--confirm" flag.')

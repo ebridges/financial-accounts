@@ -34,6 +34,7 @@ class IngestReport:
     import_file_id: int | None = None
     transactions_imported: int = 0
     transactions_matched: int = 0
+    transactions_categorized: int = 0
     message: str = ""
 
 
@@ -85,6 +86,7 @@ class IngestService:
         
         # Categorize transactions where L field is missing
         categorize_svc = CategorizeService(ctx=self._ctx, rules_path=self.category_rules_path)
+        categorized_count = 0
         
         for txn in qif.transactions:
             if not Qif.get_category(txn):
@@ -93,6 +95,7 @@ class IngestService:
                 if result:
                     category_name, _ = result
                     Qif.set_category(txn, category_name)
+                    categorized_count += 1
         
         # Convert to Transaction objects
         def resolve_account(name):
@@ -104,7 +107,7 @@ class IngestService:
         transactions = qif.as_transactions(book.id, resolve_account)
         
         # Match and insert
-        stats = {'imported': 0, 'matched': 0}
+        stats = {'imported': 0, 'matched': 0, 'categorized': categorized_count}
         
         if self.matching_rules:
             matching_svc = MatchingService(self.matching_rules)
@@ -153,7 +156,8 @@ class IngestService:
             import_file_id=import_file.id,
             transactions_imported=stats['imported'],
             transactions_matched=stats['matched'],
-            message=f"Imported {stats['imported']}, matched {stats['matched']}"
+            transactions_categorized=stats['categorized'],
+            message=f"Imported {stats['imported']}, matched {stats['matched']}, categorized {stats['categorized']}"
         )
     
     def list_imports(self) -> list[ImportFile]:
