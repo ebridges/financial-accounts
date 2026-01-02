@@ -172,7 +172,9 @@ class Qif:
                 if not account:
                     logger.error(f"Account '{split_data['account_name']}' not found")
                     raise ValueError(f"Account '{split_data['account_name']}' not found")
-                split.account = account
+                # Only set account_id (foreign key), NOT account (relationship)
+                # Setting split.account triggers bidirectional relationship which causes
+                # SAWarning when Split is not yet in session
                 split.account_id = account.id
                 split.amount = split_data['amount']
                 transaction.splits.append(split)
