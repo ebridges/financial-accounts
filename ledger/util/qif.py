@@ -1,8 +1,7 @@
-# from typing import List
+from collections import OrderedDict
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
-from collections import OrderedDict
-from typing import Callable
 
 from ledger.db.models import Transaction, Split, Account
 from ledger.util.normalize import normalize_payee
@@ -27,7 +26,7 @@ class Qif:
     def __init__(self):
         self.account_info = OrderedDict()
         self.transaction_type = None
-        self.transactions = []  # List[Transaction]
+        self.transactions = []  # list[Transaction]
 
     def init_from_qif_file(self, qif_file):
         with open(qif_file, 'r') as file:

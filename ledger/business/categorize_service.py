@@ -20,12 +20,9 @@ Usage:
 import json
 import re
 from logging import warning
-from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
 
 from ledger.config import CATEGORY_RULES_PATH
-
-if TYPE_CHECKING:
-    from ledger.business.book_context import BookContext
+from ledger.business.book_context import BookContext
 
 
 class CategoryRules:
@@ -44,8 +41,8 @@ class CategoryRules:
     
     def __init__(self, rules_path: str = CATEGORY_RULES_PATH):
         self.rules_path = rules_path
-        self.rules: Dict[str, List[dict]] = {}
-        self._compiled_patterns: Dict[str, List[Tuple[re.Pattern, str]]] = {}
+        self.rules: dict[str, list[dict]] = {}
+        self._compiled_patterns: dict[str, list[tuple[re.Pattern, str]]] = {}
         self._load_rules()
     
     def _load_rules(self):
@@ -80,7 +77,7 @@ class CategoryRules:
             if compiled:
                 self._compiled_patterns[category] = compiled
     
-    def match(self, payee_norm: str) -> Optional[str]:
+    def match(self, payee_norm: str) -> str | None:
         """
         Find a matching category for a normalized payee.
         
@@ -101,7 +98,7 @@ class CategoryRules:
         
         return None
     
-    def get_categories(self) -> List[str]:
+    def get_categories(self) -> list[str]:
         """Get list of all category account names in rules."""
         return list(self.rules.keys())
 
@@ -134,7 +131,7 @@ class CategorizeService:
         self,
         payee_norm: str,
         update_cache: bool = True,
-    ) -> Optional[Tuple[str, str]]:
+    ) -> tuple[str, str] | None:
         """
         Look up the category for a normalized payee using tiered approach.
         

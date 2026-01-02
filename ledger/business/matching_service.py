@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import timedelta, date
-from typing import List, Tuple, Iterator, Optional
+from collections.abc import Iterator
 
 from ledger.config import MATCHING_RULES_PATH
 from ledger.db.models import Transaction, Account
@@ -80,8 +80,8 @@ class MatchingService:
         self.rules = matching_rules
 
     def compute_candidate_date_range(
-        self, to_import: List[Transaction]
-    ) -> Tuple[date, date]:
+        self, to_import: list[Transaction]
+    ) -> tuple[date, date]:
         """
         Calculate the date range (with buffer) to query potential candidate transactions.
         Caller should use this to fetch candidates efficiently.
@@ -95,15 +95,15 @@ class MatchingService:
         buffer = timedelta(days=DEFAULT_DATE_OFFSET)
         return min_date - buffer, max_date + buffer
 
-    def get_matchable_accounts(self, import_for: Account) -> List[str]:
+    def get_matchable_accounts(self, import_for: Account) -> list[str]:
         return self.rules.matchable_accounts(import_for)
 
     def match_transactions(
         self,
         import_for: Account,
-        to_import: List[Transaction],
-        candidates: List[Transaction],
-    ) -> Iterator[Tuple[str, Transaction]]:
+        to_import: list[Transaction],
+        candidates: list[Transaction],
+    ) -> Iterator[tuple[str, Transaction]]:
         """
         Generator that yields decisions for each imported transaction.
         
@@ -169,7 +169,7 @@ class MatchingService:
         return True
 
     @staticmethod
-    def compare_splits(imported: Transaction, candidate: Transaction) -> Optional[Transaction]:
+    def compare_splits(imported: Transaction, candidate: Transaction) -> Transaction | None:
         """
         Returns the candidate if all its splits match imported transaction splits
         by (account_id, amount), otherwise None.

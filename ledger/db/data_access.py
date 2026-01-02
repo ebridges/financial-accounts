@@ -1,6 +1,5 @@
 # data_access.py
 from datetime import datetime
-from typing import List, Optional
 
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, text
@@ -24,7 +23,7 @@ class DAL:
         self.session.commit()
         return book
 
-    def get_book_by_name(self, name: str) -> Optional[Book]:
+    def get_book_by_name(self, name: str) -> Book | None:
         return self.session.query(Book).filter_by(name=name).one_or_none()
 
     # --------------------------------------------------------------------------
@@ -37,8 +36,8 @@ class DAL:
         code: str,
         name: str,
         full_name: str,
-        parent_account_id: Optional[str] = None,
-        description: Optional[str] = None,
+        parent_account_id: str | None = None,
+        description: str | None = None,
         hidden: bool = False,
         placeholder: bool = False,
     ) -> Account:
@@ -61,7 +60,7 @@ class DAL:
         self.session.commit()
         return account
 
-    def get_account(self, account_id: str) -> Optional[Account]:
+    def get_account(self, account_id: str) -> Account | None:
         return (
             self.session.query(Account)
             .options(joinedload(Account.splits))
@@ -71,7 +70,7 @@ class DAL:
 
     def get_account_by_fullname_for_book(
         self, book_id: str, acct_fullname: str
-    ) -> Optional[Account]:
+    ) -> Account | None:
         account = (
             self.session.query(Account)
             .options(joinedload(Account.splits))
@@ -82,7 +81,7 @@ class DAL:
 
     def get_account_by_name_for_book(
         self, book_id: str, acct_code, acct_name: str
-    ) -> Optional[Account]:
+    ) -> Account | None:
         account = (
             self.session.query(Account)
             .options(joinedload(Account.splits))
@@ -91,7 +90,7 @@ class DAL:
         )
         return account
 
-    def list_accounts_for_book(self, book_id: str) -> List[Account]:
+    def list_accounts_for_book(self, book_id: str) -> list[Account]:
         return (
             self.session.query(Account)
             .options(joinedload(Account.splits))
@@ -102,7 +101,7 @@ class DAL:
     # --------------------------------------------------------------------------
     # Transactions
     # --------------------------------------------------------------------------
-    def insert_transactions(self, transactions: List[Transaction]):
+    def insert_transactions(self, transactions: list[Transaction]):
         try:
             self.session.add_all(transactions)
             self.session.commit()
@@ -143,7 +142,7 @@ class DAL:
         self.session.commit()
         return txn
 
-    def get_transaction(self, txn_id: str) -> Optional[Transaction]:
+    def get_transaction(self, txn_id: str) -> Transaction | None:
         return (
             self.session.query(Transaction)
             .options(joinedload(Transaction.splits).joinedload(Split.account))
@@ -151,7 +150,7 @@ class DAL:
             .one_or_none()
         )
 
-    def list_transactions_for_book(self, book_id: str) -> List[Transaction]:
+    def list_transactions_for_book(self, book_id: str) -> list[Transaction]:
         return (
             self.session.query(Transaction)
             .options(joinedload(Transaction.splits).joinedload(Split.account))
@@ -164,8 +163,8 @@ class DAL:
         book_id: int,
         start_date: datetime.date,
         end_date: datetime.date,
-        accounts_to_match_for: List[str],
-        reconciliation_status: Optional[str] = None,
+        accounts_to_match_for: list[str],
+        reconciliation_status: str | None = None,
     ):
         query = (
             self.session.query(Transaction)
@@ -231,11 +230,11 @@ class DAL:
         filename: str,
         source_type: str,
         file_hash: str,
-        source_path: Optional[str] = None,
-        archive_path: Optional[str] = None,
+        source_path: str | None = None,
+        archive_path: str | None = None,
         coverage_start=None,
         coverage_end=None,
-        row_count: Optional[int] = None,
+        row_count: int | None = None,
     ) -> ImportFile:
         """Create a new import file record."""
         import_file = ImportFile(
@@ -254,13 +253,13 @@ class DAL:
         self.session.commit()
         return import_file
 
-    def get_import_file(self, import_file_id: int) -> Optional[ImportFile]:
+    def get_import_file(self, import_file_id: int) -> ImportFile | None:
         """Get an import file by ID."""
         return self.session.query(ImportFile).filter_by(id=import_file_id).one_or_none()
 
     def get_import_file_by_scope(
         self, book_id: int, account_id: int, filename: str
-    ) -> Optional[ImportFile]:
+    ) -> ImportFile | None:
         """Get an import file by its unique scope (book, account, filename)."""
         return (
             self.session.query(ImportFile)
@@ -268,7 +267,7 @@ class DAL:
             .one_or_none()
         )
 
-    def list_import_files_for_book(self, book_id: int) -> List[ImportFile]:
+    def list_import_files_for_book(self, book_id: int) -> list[ImportFile]:
         """List all import files for a book."""
         return (
             self.session.query(ImportFile)
@@ -280,7 +279,7 @@ class DAL:
     # --------------------------------------------------------------------------
     # CategoryCache
     # --------------------------------------------------------------------------
-    def get_category_from_cache(self, payee_norm: str) -> Optional[CategoryCache]:
+    def get_category_from_cache(self, payee_norm: str) -> CategoryCache | None:
         """Look up a category by normalized payee."""
         return self.session.query(CategoryCache).filter_by(payee_norm=payee_norm).one_or_none()
 

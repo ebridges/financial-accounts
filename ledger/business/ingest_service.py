@@ -9,7 +9,6 @@ Usage:
 import hashlib
 import os
 from dataclasses import dataclass
-from typing import List, Optional
 from enum import Enum
 
 from ledger.business.matching_service import MatchingService
@@ -32,7 +31,7 @@ class IngestResult(Enum):
 class IngestReport:
     """Report from an ingest operation."""
     result: IngestResult
-    import_file_id: Optional[int] = None
+    import_file_id: int | None = None
     transactions_imported: int = 0
     transactions_matched: int = 0
     message: str = ""
@@ -157,11 +156,11 @@ class IngestService:
             message=f"Imported {stats['imported']}, matched {stats['matched']}"
         )
     
-    def list_imports(self) -> List[ImportFile]:
+    def list_imports(self) -> list[ImportFile]:
         """List all import files for this book."""
         return self._ctx.dal.list_import_files_for_book(self._ctx.book.id)
     
-    def get_import(self, import_file_id: int) -> Optional[ImportFile]:
+    def get_import(self, import_file_id: int) -> ImportFile | None:
         """Get an import file by ID."""
         return self._ctx.dal.get_import_file(import_file_id)
     

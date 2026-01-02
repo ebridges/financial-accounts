@@ -1,6 +1,5 @@
 # transaction_service.py
 """Transaction service for managing transactions within a book."""
-from typing import List
 from decimal import Decimal
 from datetime import datetime, date
 
@@ -15,7 +14,7 @@ class TransactionService:
         self._dal = dal
         self._book = book
 
-    def insert_bulk(self, txns: List[Transaction]):
+    def insert_bulk(self, txns: list[Transaction]):
         """Insert multiple transactions."""
         self._dal.insert_transactions(txns)
 
@@ -56,8 +55,8 @@ class TransactionService:
         self,
         start_date: date,
         end_date: date,
-        account_names: List[str] = None,
-    ) -> List[Transaction]:
+        account_names: list[str] = None,
+    ) -> list[Transaction]:
         """Query unmatched transactions in date range, optionally filtered by accounts."""
         return self._dal.query_for_unmatched_transactions_in_range(
             self._book.id, start_date, end_date, account_names or []
@@ -74,6 +73,6 @@ class TransactionService:
         """Mark a transaction as matched."""
         self._dal.update_transaction_match_status(transaction)
 
-    def get_all(self) -> List[Transaction]:
+    def get_all(self) -> list[Transaction]:
         """Get all transactions in this book."""
         return self._dal.list_transactions_for_book(book_id=self._book.id)
