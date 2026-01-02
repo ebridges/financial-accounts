@@ -1,10 +1,13 @@
 # data_access.py
 from datetime import datetime
+from logging import getLogger
 
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_
 
 from ledger.db.models import Book, Account, Transaction, Split, ImportFile, CategoryCache
+
+logger = getLogger(__name__)
 
 
 class DAL:
@@ -18,9 +21,11 @@ class DAL:
     # Book
     # --------------------------------------------------------------------------
     def create_book(self, name: str) -> Book:
+        logger.debug(f"Creating book '{name}'")
         book = Book(name=name)
         self.session.add(book)
         self.session.commit()
+        logger.debug(f"Created book '{name}' with id={book.id}")
         return book
 
     def get_book_by_name(self, name: str) -> Book | None:
@@ -45,6 +50,7 @@ class DAL:
         Creates a new Account. The acct_type param must be one of
         ('ASSET','LIABILITY','INCOME','EXPENSE','EQUITY').
         """
+        logger.debug(f"Creating account '{full_name}' in book_id={book_id}")
         account = Account(
             book_id=book_id,
             acct_type=acct_type,  # If using an Enum, do acct_type.value
@@ -58,6 +64,7 @@ class DAL:
         )
         self.session.add(account)
         self.session.commit()
+        logger.debug(f"Created account '{full_name}' with id={account.id}")
         return account
 
     def get_account(self, account_id: str) -> Account | None:
@@ -102,18 +109,24 @@ class DAL:
     # Transactions
     # --------------------------------------------------------------------------
     def insert_transactions(self, transactions: list[Transaction]):
+        logger.debug(f"Inserting {len(transactions)} transactions")
         try:
             self.session.add_all(transactions)
             self.session.commit()
+            logger.debug(f"Inserted {len(transactions)} transactions")
         except Exception as e:
+            logger.error(f"Failed to insert transactions: {e}")
             self.session.rollback()
             raise e
 
     def insert_transaction(self, txn: Transaction):
+        logger.debug(f"Inserting transaction: '{txn.transaction_description}'")
         try:
             self.session.add(txn)
             self.session.commit()
+            logger.debug(f"Inserted transaction id={txn.id}")
         except Exception as e:
+            logger.error(f"Failed to insert transaction: {e}")
             self.session.rollback()
             raise e
         return txn.id
@@ -166,6 +179,7 @@ class DAL:
         accounts_to_match_for: list[str],
         reconciliation_status: str | None = None,
     ):
+        logger.debug(f"Querying unmatched transactions: {start_date} to {end_date}, accounts={accounts_to_match_for}")
         query = (
             self.session.query(Transaction)
             .join(Split)
@@ -185,17 +199,23 @@ class DAL:
         if reconciliation_status:
             query = query.filter(Split.reconcile_state == reconciliation_status)
 
-        return query.all()
+        results = query.all()
+        logger.debug(f"Found {len(results)} unmatched transactions")
+        return results
 
     def delete_transaction(self, txn_id: str) -> bool:
+        logger.debug(f"Deleting transaction id={txn_id}")
         splits = self.session.query(Split).filter_by(transaction_id=txn_id)
         txn = self.session.query(Transaction).filter_by(id=txn_id).one_or_none()
         if not txn:
+            logger.warning(f"Transaction id={txn_id} not found for deletion")
             return False
+        split_count = splits.count()
         for split in splits:
             self.session.delete(split)
         self.session.delete(txn)
         self.session.commit()
+        logger.debug(f"Deleted transaction id={txn_id} with {split_count} splits")
         return True
 
     # --------------------------------------------------------------------------
@@ -237,6 +257,7 @@ class DAL:
         row_count: int | None = None,
     ) -> ImportFile:
         """Create a new import file record."""
+        logger.debug(f"Creating import file record: '{filename}'")
         import_file = ImportFile(
             book_id=book_id,
             account_id=account_id,
@@ -251,6 +272,7 @@ class DAL:
         )
         self.session.add(import_file)
         self.session.commit()
+        logger.debug(f"Created import file id={import_file.id} for '{filename}'")
         return import_file
 
     def get_import_file(self, import_file_id: int) -> ImportFile | None:

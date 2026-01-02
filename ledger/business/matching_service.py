@@ -2,9 +2,12 @@ import json
 import re
 from datetime import timedelta, date
 from collections.abc import Iterator
+from logging import getLogger
 
 from ledger.config import MATCHING_RULES_PATH
 from ledger.db.models import Transaction, Account
+
+logger = getLogger(__name__)
 
 DEFAULT_DATE_OFFSET = 1
 
@@ -56,8 +59,10 @@ class MatchingRules:
     '''
 
     def __init__(self, rules_path: str = MATCHING_RULES_PATH):
+        logger.debug(f"Loading matching rules from '{rules_path}'")
         with open(rules_path, 'r') as file:
             self.rules = json.load(fp=file)
+        logger.debug(f"Loaded rules for {len(self.rules.get('matching_rules', {}))} accounts")
 
     def matchable_accounts(self, account: Account) -> set:
         return self.rules["matching_rules"].get(account.full_name, {}).keys()
@@ -113,23 +118,34 @@ class MatchingService:
 
         Order of yields generally follows order of `to_import`.
         """
+        logger.debug(f"Matching {len(to_import)} imports against {len(candidates)} candidates for account '{import_for.full_name}'")
         matchable_accounts = self.get_matchable_accounts(import_for)
         if not matchable_accounts:
+            logger.debug(f"No matchable accounts configured for '{import_for.full_name}', importing all")
             for txn in to_import:
                 yield ('import', txn)
             return
+        
+        logger.debug(f"Matchable accounts: {list(matchable_accounts)}")
+        match_count = 0
+        import_count = 0
         
         for txn_import in to_import:
             matched = False
 
             for txn_candidate in candidates:
                 if self.is_match(import_for, txn_import, txn_candidate):
+                    logger.debug(f"MATCH: import '{txn_import.transaction_description}' -> candidate id={txn_candidate.id}")
                     yield ('match', txn_candidate)
                     matched = True
+                    match_count += 1
                     break
 
             if not matched:
                 yield ('import', txn_import)
+                import_count += 1
+        
+        logger.debug(f"Matching complete: {match_count} matched, {import_count} imported")
     
     
     def is_match(
@@ -142,13 +158,18 @@ class MatchingService:
         Core matching logic between one imported transaction and one candidate.
         Returns True if they should be considered a match.
         """
+        logger.debug(f"is_match: comparing import '{txn_import.transaction_description}' vs candidate id={txn_candidate.id}")
+        
         # 1. Check split equality (accounts + amounts must match exactly)
         if self.compare_splits(txn_import, txn_candidate) is None:
+            logger.debug("is_match: splits do not match")
             return False
+        logger.debug("is_match: splits match")
 
         # 2. Get the corresponding (counterparty) account from the imported transaction
         #    → this is the key we use to look up account-specific matching rules
         corresponding_account = txn_import.corresponding_account(import_for)
+        logger.debug(f"is_match: corresponding account = '{corresponding_account.full_name}'")
 
         # 3. Check description against allowed patterns for this counterparty
         patterns = self.rules.matching_patterns(import_for, corresponding_account)
@@ -157,15 +178,20 @@ class MatchingService:
         description_matched = any(re.match(pattern, description) for pattern in patterns)
 
         if not description_matched:
+            logger.debug(f"is_match: description '{description}' did not match any of {len(patterns)} patterns")
             return False
+        logger.debug(f"is_match: description matched")
 
-        # 3. Check date proximity
+        # 4. Check date proximity
         date_offset = self.rules.matching_date_offset(import_for, corresponding_account)
         date_diff = abs((txn_import.transaction_date - txn_candidate.transaction_date).days)
 
         if date_diff > date_offset:
+            logger.debug(f"is_match: date diff {date_diff} exceeds allowed offset {date_offset}")
             return False
+        logger.debug(f"is_match: date diff {date_diff} within allowed offset {date_offset}")
 
+        logger.debug("is_match: all criteria passed, returning True")
         return True
 
     @staticmethod

@@ -2,9 +2,12 @@
 """Transaction service for managing transactions within a book."""
 from decimal import Decimal
 from datetime import datetime, date
+from logging import getLogger
 
 from ledger.db.models import Transaction, Book
 from ledger.db.data_access import DAL
+
+logger = getLogger(__name__)
 
 
 class TransactionService:
@@ -32,10 +35,12 @@ class TransactionService:
 
         to_account = self._dal.get_account_by_fullname_for_book(self._book.id, to_acct)
         if not to_account:
+            logger.error(f"Debit account '{to_acct}' not found in book '{self._book.name}'")
             raise Exception(f"Debit account '{to_acct}' not found in book.")
 
         from_account = self._dal.get_account_by_fullname_for_book(self._book.id, from_acct)
         if not from_account:
+            logger.error(f"Credit account '{from_acct}' not found in book '{self._book.name}'")
             raise Exception(f"Credit account '{from_acct}' not found in book.")
 
         txn = self._dal.create_transaction(
@@ -66,6 +71,7 @@ class TransactionService:
         """Delete a transaction. Raises ValueError if not found."""
         txn = self._dal.get_transaction(txn_id=transaction_id)
         if not txn:
+            logger.error(f"Transaction id={transaction_id} not found for deletion")
             raise ValueError(f'No transaction exists with ID: {transaction_id}')
         return self._dal.delete_transaction(txn_id=transaction_id)
 

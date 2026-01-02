@@ -7,6 +7,8 @@ Usage:
         accounts = ctx.accounts.list_accounts()
         ctx.transactions.enter_transaction(...)
 """
+from logging import getLogger
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -15,6 +17,8 @@ from ledger.db.models import Book
 
 from ledger.business.account_service import AccountService
 from ledger.business.transaction_service import TransactionService
+
+logger = getLogger(__name__)
 
 
 class BookContext:
@@ -32,16 +36,20 @@ class BookContext:
         self._transactions = None
     
     def __enter__(self):
+        logger.debug(f"Entering BookContext for book '{self.book_name}'")
         self._session = self._session_factory()
         self._dal = DAL(session=self._session)
         
         self._book = self._dal.get_book_by_name(self.book_name)
         if not self._book:
+            logger.error(f"Book '{self.book_name}' not found")
             self._session.close()
             raise ValueError(f"Book '{self.book_name}' not found")
         
+        logger.debug(f"Resolved book '{self.book_name}' to id={self._book.id}")
         self._accounts = AccountService(self._dal, self._book)
         self._transactions = TransactionService(self._dal, self._book)
+        logger.debug("BookContext services initialized")
         
         return self
     
@@ -69,13 +77,17 @@ class BookContext:
         return self._require_entered('dal')
     
     def __exit__(self, exc_type, exc_val, exc_tb):
+        logger.debug(f"Exiting BookContext for book '{self.book_name}'")
         try:
             if exc_type:
+                logger.debug(f"Exception occurred ({exc_type.__name__}), rolling back")
                 self._session.rollback()
             else:
+                logger.debug("Committing session")
                 self._session.commit()
         finally:
             if self._session:
+                logger.debug("Closing session")
                 self._session.close()
             self._session = None
             self._dal = None

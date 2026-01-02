@@ -2,9 +2,12 @@ from collections import OrderedDict
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
+from logging import getLogger
 
 from ledger.db.models import Transaction, Split, Account
 from ledger.util.normalize import normalize_payee
+
+logger = getLogger(__name__)
 
 AcctHeader = '!Account'
 AcctName = 'N'
@@ -28,9 +31,12 @@ def parse_qif_date(date_str: str):
     """Parse a QIF date string, trying multiple formats."""
     for fmt in DATE_FORMATS:
         try:
-            return datetime.strptime(date_str, fmt).date()
+            result = datetime.strptime(date_str, fmt).date()
+            logger.debug(f"Parsed date '{date_str}' using format '{fmt}'")
+            return result
         except ValueError:
             continue
+    logger.warning(f"Date '{date_str}' does not match any supported format: {DATE_FORMATS}")
     raise ValueError(f"Date '{date_str}' does not match any supported format: {DATE_FORMATS}")
 
 
@@ -41,11 +47,14 @@ class Qif:
         self.transactions = []  # list[Transaction]
 
     def init_from_qif_file(self, qif_file):
+        logger.debug(f"Reading QIF file: {qif_file}")
         with open(qif_file, 'r') as file:
             data = file.readlines()
+        logger.debug(f"Read {len(data)} lines from file")
         return self.init_from_qif_data(data)
 
     def init_from_qif_data(self, qif_data):
+        logger.debug("Parsing QIF data")
         in_account_section = False
         current_transaction = OrderedDict()
         for line in qif_data:
@@ -59,10 +68,12 @@ class Qif:
                 self.account_info[line] = ''
             elif line.startswith(TxnHeader):
                 self.transaction_type = line.split(':')[1]
+                logger.debug(f"Transaction type: {self.transaction_type}")
             elif line == RecordEnd:  # end of section or transaction
                 if in_account_section:
                     self.account_info[RecordEnd] = ''
                     in_account_section = False
+                    logger.debug(f"Parsed account section: {self.account_info.get(AcctName, 'unknown')}")
                 else:
                     current_transaction[RecordEnd] = ''
                     self.transactions.append(current_transaction)
@@ -76,6 +87,8 @@ class Qif:
                     current_transaction[line_type] = line_data
                     if line_type == TxnPayee:
                         current_transaction[TxnPayeeNorm] = normalize_payee(line_data)
+        
+        logger.debug(f"Parsed {len(self.transactions)} transactions")
         return self
 
     def account(self) -> str:
@@ -141,6 +154,7 @@ class Qif:
         Returns:
             List of Transaction objects with resolved accounts
         """
+        logger.debug(f"Converting {len(self.transactions)} QIF records to Transaction objects")
         transaction_data = self.as_transaction_data(book_id)
         transactions = []
         
@@ -156,6 +170,7 @@ class Qif:
                 split = Split()
                 account = resolve_account(split_data['account_name'])
                 if not account:
+                    logger.error(f"Account '{split_data['account_name']}' not found")
                     raise ValueError(f"Account '{split_data['account_name']}' not found")
                 split.account = account
                 split.account_id = account.id
@@ -163,4 +178,6 @@ class Qif:
                 transaction.splits.append(split)
             
             transactions.append(transaction)
+        
+        logger.debug(f"Created {len(transactions)} Transaction objects")
         return transactions

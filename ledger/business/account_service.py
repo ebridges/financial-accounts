@@ -1,7 +1,11 @@
 # account_service.py
 """Account service for managing accounts within a book."""
+from logging import getLogger
+
 from ledger.db.data_access import DAL
 from ledger.db.models import Book, Account
+
+logger = getLogger(__name__)
 
 
 class AccountService:
@@ -34,6 +38,7 @@ class AccountService:
                 self._book.id, parent_code, parent_name
             )
             if not parent_acct:
+                logger.error(f"Parent account '{parent_name}' (code={parent_code}) not found in book '{self._book.name}'")
                 raise Exception(f"Parent account named '{parent_name}' not found.")
             parent_id = parent_acct.id
 
@@ -56,6 +61,7 @@ class AccountService:
             book_id=self._book.id, acct_fullname=account_name
         )
         if not account:
+            logger.error(f"Account '{account_name}' not found in book '{self._book.name}'")
             raise Exception(f"No account found with name '{account_name}'.")
         return account
 
@@ -63,5 +69,6 @@ class AccountService:
         """Look up account by ID. Raises Exception if not found."""
         account = self._dal.get_account(account_id=account_id)
         if not account:
+            logger.error(f"Account id={account_id} not found")
             raise Exception(f"No account found with id '{account_id}'.")
         return account
