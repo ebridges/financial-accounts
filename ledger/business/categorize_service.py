@@ -9,14 +9,23 @@ Implements tiered categorization lookup:
 
 This service is used by IngestService during transaction import to
 automatically assign categories to transactions that lack one.
+
+Usage:
+    with BookContext("personal", DB_URL) as ctx:
+        cat_svc = CategorizeService(ctx)
+        result = cat_svc.lookup_category_for_payee("WHOLE FOODS")
+        if result:
+            category_name, source = result  # ('Expenses:Food:Groceries', 'rule')
 """
 import json
 import re
 from logging import warning
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
 
-from ledger.business.base_service import BaseService
 from ledger.config import CATEGORY_RULES_PATH
+
+if TYPE_CHECKING:
+    from ledger.business.book_context import BookContext
 
 
 class CategoryRules:
@@ -97,33 +106,33 @@ class CategoryRules:
         return list(self.rules.keys())
 
 
-class CategorizeService(BaseService):
+class CategorizeService:
     """
     Service for looking up categories for transactions based on payee patterns.
     
-    Used by IngestService during import to auto-categorize transactions
-    that don't have a category (L field absent in QIF, or CSV imports).
+    This service operates within a BookContext, using the context's
+    AccountService for account lookups.
     
     Tiered lookup:
     1. Check category cache for exact payee_norm match (fastest)
     2. Apply regex rules from category-payee-lookup.json
     3. Return None (caller handles fallback, e.g., keep existing or use Uncategorized)
-    
-    Usage:
-        with CategorizeService().init_with_url(DB_URL) as cat_svc:
-            result = cat_svc.lookup_category_for_payee("WHOLE FOODS", book_id)
-            if result:
-                category_name, source = result  # ('Expenses:Food:Groceries', 'rule')
     """
     
-    def __init__(self, session=None, rules_path: str = CATEGORY_RULES_PATH):
-        super().__init__(session=session)
+    def __init__(self, ctx: 'BookContext', rules_path: str = CATEGORY_RULES_PATH):
+        """
+        Initialize CategorizeService with a BookContext.
+        
+        Args:
+            ctx: BookContext providing shared session, book, and services
+            rules_path: Path to category rules JSON file
+        """
+        self._ctx = ctx
         self.rules = CategoryRules(rules_path)
     
     def lookup_category_for_payee(
         self,
         payee_norm: str,
-        book_id: int,
         update_cache: bool = True,
     ) -> Optional[Tuple[str, str]]:
         """
@@ -136,7 +145,6 @@ class CategorizeService(BaseService):
         
         Args:
             payee_norm: Normalized payee string
-            book_id: Book ID for account lookups
             update_cache: Whether to update cache on rule match (default True)
         
         Returns:
@@ -146,28 +154,30 @@ class CategorizeService(BaseService):
         if not payee_norm:
             return None
         
-        # Tier 1: Check category cache
-        cache_entry = self.data_access.get_category_from_cache(payee_norm)
+        # Tier 1: Check category cache (use DAL for cache operations)
+        cache_entry = self._ctx.dal.get_category_from_cache(payee_norm)
         if cache_entry:
-            category_account = self.data_access.get_account(cache_entry.account_id)
-            if category_account:
+            # Use AccountService for account lookup
+            try:
+                category_account = self._ctx.accounts.lookup_by_id(cache_entry.account_id)
                 if update_cache:
-                    self.data_access.increment_cache_hit(payee_norm)
+                    self._ctx.dal.increment_cache_hit(payee_norm)
                 return (category_account.full_name, 'cache')
+            except Exception:
+                # Account not found, continue to tier 2
+                pass
         
         # Tier 2: Apply regex rules
         matched_category = self.rules.match(payee_norm)
         if matched_category:
-            # Verify the account exists
-            category_account = self.data_access.get_account_by_fullname_for_book(
-                book_id, matched_category
-            )
-            if category_account:
+            # Verify the account exists using AccountService
+            try:
+                category_account = self._ctx.accounts.lookup_by_name(matched_category)
                 if update_cache:
                     # Cache this match for future lookups
-                    self.data_access.set_category_cache(payee_norm, category_account.id)
+                    self._ctx.dal.set_category_cache(payee_norm, category_account.id)
                 return (matched_category, 'rule')
-            else:
+            except Exception:
                 warning(f"Category {matched_category} found for payee {payee_norm} but account not found")
 
         # Tier 3: No match - return None, let caller handle fallback

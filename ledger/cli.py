@@ -4,9 +4,8 @@ import sys
 import os
 
 from ledger.version import __version__
-from ledger.business.transaction_service import TransactionService
+from ledger.business.book_context import BookContext
 from ledger.business.management_service import ManagementService
-from ledger.business.account_service import AccountService
 from ledger.business.book_service import BookService
 from ledger.business.ingest_service import IngestService, IngestResult
 
@@ -109,7 +108,7 @@ def main():
         )
 
     elif args.command == "delete-transaction":
-        do_delete_transaction(args.db_url, args.txn_id)
+        do_delete_transaction(args.db_url, args.book_name, args.txn_id)
 
     elif args.command == "ingest":
         do_ingest(
@@ -209,6 +208,9 @@ def parse_arguments():
 
     # delete-transaction
     sp_delete_txn = subparsers.add_parser("delete-transaction", help="Delete a transaction by ID")
+    sp_delete_txn.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
     sp_delete_txn.add_argument("--txn-id", "-T", required=True, help="Transaction ID")
 
     # ingest
@@ -250,9 +252,8 @@ def do_add_account(
     hidden,
     placeholder,
 ):
-    with AccountService().init_with_url(db_url=db_url) as acct_service:
-        new_account = acct_service.add_account(
-            book_name,
+    with BookContext(book_name, db_url) as ctx:
+        new_account = ctx.accounts.add_account(
             parent_code,
             parent_name,
             acct_name,
@@ -267,8 +268,8 @@ def do_add_account(
 
 
 def do_list_accounts(db_url, book_name):
-    with AccountService().init_with_url(db_url=db_url) as acct_service:
-        accounts = acct_service.list_accounts_in_book(book_name)
+    with BookContext(book_name, db_url) as ctx:
+        accounts = ctx.accounts.list_accounts()
         if not accounts:
             print(f"No accounts in book '{book_name}'.")
         else:
@@ -276,7 +277,7 @@ def do_list_accounts(db_url, book_name):
             for a in accounts:
                 parent_account_name = None
                 if a.parent_account_id:
-                    parent_account = acct_service.lookup_account_by_id(a.parent_account_id)
+                    parent_account = ctx.accounts.lookup_by_id(a.parent_account_id)
                     parent_account_name = parent_account.name
                 print(
                     f" - [ID={a.id}] Name={a.name}, Code={a.code}, Type={a.acct_type}, "
@@ -285,9 +286,8 @@ def do_list_accounts(db_url, book_name):
 
 
 def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credit_acct, amount):
-    with TransactionService().init_with_url(db_url=db_url) as txn_service:
-        txn_id = txn_service.enter_transaction(
-            book_name=book_name,
+    with BookContext(book_name, db_url) as ctx:
+        txn_id = ctx.transactions.enter_transaction(
             txn_date=txn_date,
             txn_desc=txn_desc,
             to_acct=debit_acct,
@@ -300,13 +300,13 @@ def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credi
         )
 
 
-def do_delete_transaction(db_url, txn_id):
-    with TransactionService().init_with_url(db_url=db_url) as txn_service:
+def do_delete_transaction(db_url, book_name, txn_id):
+    with BookContext(book_name, db_url) as ctx:
         try:
-            txn_service.delete_transaction(transaction_id=txn_id)
+            ctx.transactions.delete(transaction_id=int(txn_id))
+            print(f'Transaction ID {txn_id} successfully deleted.')
         except ValueError as e:
             print(f'Transaction ID {txn_id} was not deleted. {e}')
-        print(f'Transaction ID {txn_id} successfully deleted.')
 
 
 def do_init_db(db_url, confirm):
@@ -329,12 +329,10 @@ def do_ingest(db_url, file_path, book_name):
         print(f"Error: Unsupported file type '{ext}'. Use .qif")
         return 1
 
-    with IngestService().init_with_url(db_url=db_url) as ingest_svc:
+    with BookContext(book_name, db_url) as ctx:
         try:
-            report = ingest_svc.ingest_qif(
-                file_path=file_path,
-                book_name=book_name,
-            )
+            ingest_svc = IngestService(ctx)
+            report = ingest_svc.ingest_qif(file_path=file_path)
 
             # Print result
             if report.result == IngestResult.IMPORTED:
@@ -360,9 +358,10 @@ def do_ingest(db_url, file_path, book_name):
 
 def do_list_imports(db_url, book_name):
     """List all imported files for a book."""
-    with IngestService().init_with_url(db_url=db_url) as ingest_svc:
+    with BookContext(book_name, db_url) as ctx:
         try:
-            imports = ingest_svc.list_imports(book_name)
+            ingest_svc = IngestService(ctx)
+            imports = ingest_svc.list_imports()
 
             if not imports:
                 print(f"No imports found for book '{book_name}'.")

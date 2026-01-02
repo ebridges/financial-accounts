@@ -95,116 +95,104 @@ class TestCategorizeServiceLookup:
         os.unlink(f.name)
 
     @pytest.fixture
-    def mock_data_access(self):
-        dal = MagicMock()
-        dal.get_book_by_name.return_value = MagicMock(id=1, name='test')
-        return dal
+    def mock_ctx(self):
+        """Create mock BookContext."""
+        ctx = MagicMock()
+        ctx.book = MagicMock(id=1, name='test')
+        ctx.dal = MagicMock()
+        ctx.accounts = MagicMock()
+        return ctx
 
-    def test_tier1_cache_hit(self, rules_file, mock_data_access):
+    def test_tier1_cache_hit(self, rules_file, mock_ctx):
         """Tier 1: Cache hit should be returned first."""
         # Mock cache hit
         mock_cache = MagicMock()
         mock_cache.account_id = 10
-        mock_data_access.get_category_from_cache.return_value = mock_cache
+        mock_ctx.dal.get_category_from_cache.return_value = mock_cache
 
         mock_account = MagicMock()
         mock_account.id = 10
         mock_account.full_name = "Expenses:Food:Groceries"
-        mock_data_access.get_account.return_value = mock_account
+        mock_ctx.accounts.lookup_by_id.return_value = mock_account
 
-        service = CategorizeService(rules_path=rules_file)
-        service.data_access = mock_data_access
-
-        result = service.lookup_category_for_payee("WHOLE FOODS", book_id=1)
+        service = CategorizeService(mock_ctx, rules_path=rules_file)
+        result = service.lookup_category_for_payee("WHOLE FOODS")
 
         assert result is not None
         category, source = result
         assert category == "Expenses:Food:Groceries"
         assert source == 'cache'
-        mock_data_access.increment_cache_hit.assert_called_once_with("WHOLE FOODS")
+        mock_ctx.dal.increment_cache_hit.assert_called_once_with("WHOLE FOODS")
 
-    def test_tier2_rule_match(self, rules_file, mock_data_access):
+    def test_tier2_rule_match(self, rules_file, mock_ctx):
         """Tier 2: Rules should be checked if no cache hit."""
         # No cache hit
-        mock_data_access.get_category_from_cache.return_value = None
+        mock_ctx.dal.get_category_from_cache.return_value = None
 
         mock_account = MagicMock()
         mock_account.id = 10
         mock_account.full_name = "Expenses:Food:Groceries"
-        mock_data_access.get_account_by_fullname_for_book.return_value = mock_account
+        mock_ctx.accounts.lookup_by_name.return_value = mock_account
 
-        service = CategorizeService(rules_path=rules_file)
-        service.data_access = mock_data_access
-
-        result = service.lookup_category_for_payee("WHOLE FOODS MARKET", book_id=1)
+        service = CategorizeService(mock_ctx, rules_path=rules_file)
+        result = service.lookup_category_for_payee("WHOLE FOODS MARKET")
 
         assert result is not None
         category, source = result
         assert category == "Expenses:Food:Groceries"
         assert source == 'rule'
         # Should cache for future lookups
-        mock_data_access.set_category_cache.assert_called_once()
+        mock_ctx.dal.set_category_cache.assert_called_once()
 
-    def test_tier3_no_match_returns_none(self, rules_file, mock_data_access):
+    def test_tier3_no_match_returns_none(self, rules_file, mock_ctx):
         """Tier 3: Returns None when no cache or rule matches."""
         # No cache hit
-        mock_data_access.get_category_from_cache.return_value = None
+        mock_ctx.dal.get_category_from_cache.return_value = None
         # No rule match account found
-        mock_data_access.get_account_by_fullname_for_book.return_value = None
+        mock_ctx.accounts.lookup_by_name.side_effect = Exception("Not found")
 
-        service = CategorizeService(rules_path=rules_file)
-        service.data_access = mock_data_access
-
-        result = service.lookup_category_for_payee("RANDOM UNKNOWN VENDOR", book_id=1)
+        service = CategorizeService(mock_ctx, rules_path=rules_file)
+        result = service.lookup_category_for_payee("RANDOM UNKNOWN VENDOR")
 
         assert result is None
 
-    def test_empty_payee_returns_none(self, rules_file, mock_data_access):
+    def test_empty_payee_returns_none(self, rules_file, mock_ctx):
         """Empty or None payee should return None."""
-        service = CategorizeService(rules_path=rules_file)
-        service.data_access = mock_data_access
+        service = CategorizeService(mock_ctx, rules_path=rules_file)
 
-        assert service.lookup_category_for_payee("", book_id=1) is None
-        assert service.lookup_category_for_payee(None, book_id=1) is None
+        assert service.lookup_category_for_payee("") is None
+        assert service.lookup_category_for_payee(None) is None
 
-    def test_update_cache_false_skips_cache_update(self, rules_file, mock_data_access):
+    def test_update_cache_false_skips_cache_update(self, rules_file, mock_ctx):
         """update_cache=False should not update cache on rule match."""
-        mock_data_access.get_category_from_cache.return_value = None
+        mock_ctx.dal.get_category_from_cache.return_value = None
 
         mock_account = MagicMock()
         mock_account.id = 10
         mock_account.full_name = "Expenses:Food:Groceries"
-        mock_data_access.get_account_by_fullname_for_book.return_value = mock_account
+        mock_ctx.accounts.lookup_by_name.return_value = mock_account
 
-        service = CategorizeService(rules_path=rules_file)
-        service.data_access = mock_data_access
-
-        result = service.lookup_category_for_payee(
-            "WHOLE FOODS", book_id=1, update_cache=False
-        )
+        service = CategorizeService(mock_ctx, rules_path=rules_file)
+        result = service.lookup_category_for_payee("WHOLE FOODS", update_cache=False)
 
         assert result is not None
         # Should NOT update cache
-        mock_data_access.set_category_cache.assert_not_called()
-        mock_data_access.increment_cache_hit.assert_not_called()
+        mock_ctx.dal.set_category_cache.assert_not_called()
+        mock_ctx.dal.increment_cache_hit.assert_not_called()
 
-    def test_cache_hit_with_update_cache_false(self, rules_file, mock_data_access):
+    def test_cache_hit_with_update_cache_false(self, rules_file, mock_ctx):
         """Cache hit with update_cache=False should not increment hit count."""
         mock_cache = MagicMock()
         mock_cache.account_id = 10
-        mock_data_access.get_category_from_cache.return_value = mock_cache
+        mock_ctx.dal.get_category_from_cache.return_value = mock_cache
 
         mock_account = MagicMock()
         mock_account.full_name = "Expenses:Food:Groceries"
-        mock_data_access.get_account.return_value = mock_account
+        mock_ctx.accounts.lookup_by_id.return_value = mock_account
 
-        service = CategorizeService(rules_path=rules_file)
-        service.data_access = mock_data_access
-
-        result = service.lookup_category_for_payee(
-            "WHOLE FOODS", book_id=1, update_cache=False
-        )
+        service = CategorizeService(mock_ctx, rules_path=rules_file)
+        result = service.lookup_category_for_payee("WHOLE FOODS", update_cache=False)
 
         assert result is not None
         # Should NOT increment hit count
-        mock_data_access.increment_cache_hit.assert_not_called()
+        mock_ctx.dal.increment_cache_hit.assert_not_called()

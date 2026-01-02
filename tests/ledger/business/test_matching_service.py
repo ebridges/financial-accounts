@@ -1,12 +1,10 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 from ledger.business.matching_service import (
-    DEFAULT_DATE_OFFSET,
     MatchingService,
     MatchingRules,
 )
-from ledger.db.models import Account, Transaction, Split
 
 
 @pytest.fixture
@@ -46,9 +44,9 @@ def mock_matching_rules_from_config(mock_matching_rules_data):
 def mock_account():
     """Creates a mock Account object."""
 
-    # book_id, code, name, full_name, description ...
     def _mock_account(account_id):
-        account = MagicMock(spec=Account)
+        # Don't use spec=Account to avoid SQLAlchemy introspection
+        account = MagicMock()
         account.id = account_id
         return account
 
@@ -68,7 +66,8 @@ def mock_transaction():
         description: str = default_description,
         splits: list = default_splits,
     ):
-        transaction = MagicMock(spec=Transaction)
+        # Don't use spec=Transaction to avoid SQLAlchemy introspection
+        transaction = MagicMock()
         transaction.transaction_date = datetime.fromisoformat(date)
         transaction.transaction_description = description
         transaction.splits = splits
@@ -82,7 +81,8 @@ def mock_split():
     """Creates a mock Split object."""
 
     def _mock_split(account_id, amount):
-        split = MagicMock(spec=Split)
+        # Don't use spec=Split to avoid SQLAlchemy introspection
+        split = MagicMock()
         split.account_id = account_id
         split.amount = amount
         return split
@@ -97,7 +97,7 @@ def mock_matching_rules():
     default_patterns = [r"Payment \d+", r"Invoice \d+"]
     default_offset = 5
 
-    mock_rules = MagicMock(spec=MatchingRules)
+    mock_rules = MagicMock()
     mock_rules.matching_patterns.return_value = default_patterns
     mock_rules.matching_date_offset.return_value = default_offset
 
@@ -111,6 +111,7 @@ def matching_service(mock_matching_rules):
     return service
 
 
+@pytest.mark.filterwarnings("ignore::ResourceWarning")
 @patch(
     "ledger.business.matching_service.MatchingService.compare_splits", return_value=True
 )
@@ -261,7 +262,7 @@ def test_compare_splits_missing_split(mock_transaction, mock_split):
     result = MatchingService.compare_splits(imported, candidate)
     assert result is None, "Expected None when candidate has a missing split"
 
-
+@pytest.mark.filterwarnings("ignore::ResourceWarning")
 def test_compare_splits_unordered_matching(mock_transaction, mock_split):
     """Test when candidate splits match but are in a different order."""
     imported = mock_transaction(
@@ -364,6 +365,7 @@ def test_matching_date_offset_key_error(mock_account, mock_matching_rules_from_c
         mock_matching_rules_from_config.matching_date_offset(test_account_1, test_account_2)
 
 
+@pytest.mark.filterwarnings("ignore::ResourceWarning")
 def test_matching_rules_malformed_data(mock_account):
     """Test behavior when matching rules configuration is malformed."""
     malformed_data = {

@@ -4,7 +4,6 @@ import pytest
 import tempfile
 import os
 from unittest.mock import MagicMock, patch
-from datetime import date
 
 from ledger.business.ingest_service import IngestService, IngestResult, IngestReport
 
@@ -95,12 +94,18 @@ class TestIngestServiceIdempotency:
     """Tests for file-level idempotency behavior."""
 
     @pytest.fixture
-    def mock_data_access(self):
-        """Create mock data access layer."""
-        dal = MagicMock()
-        dal.get_book_by_name.return_value = MagicMock(id=1, name='test')
-        dal.get_account_by_fullname_for_book.return_value = MagicMock(id=1, full_name='Test:Account')
-        return dal
+    def mock_ctx(self):
+        """Create mock BookContext."""
+        ctx = MagicMock()
+        ctx.book = MagicMock(id=1, name='test')
+        ctx.dal = MagicMock()
+        ctx.accounts = MagicMock()
+        ctx.transactions = MagicMock()
+        
+        # Setup default account lookup
+        ctx.accounts.lookup_by_name.return_value = MagicMock(id=1, full_name='Test:Account')
+        
+        return ctx
 
     @pytest.fixture
     def qif_content(self):
@@ -116,7 +121,7 @@ LExpenses:Uncategorized
 ^
 """
 
-    def test_skip_duplicate_same_hash(self, mock_data_access, qif_content):
+    def test_skip_duplicate_same_hash(self, mock_ctx, qif_content):
         """Same file (by hash) should be skipped."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write(qif_content)
@@ -130,24 +135,19 @@ LExpenses:Uncategorized
             mock_existing = MagicMock()
             mock_existing.id = 5
             mock_existing.file_hash = file_hash  # Same hash
-            mock_data_access.get_import_file_by_scope.return_value = mock_existing
+            mock_ctx.dal.get_import_file_by_scope.return_value = mock_existing
 
-            service = IngestService()
-            service.data_access = mock_data_access
-
-            report = service.ingest_qif(
-                file_path=qif_path,
-                book_name='test'
-            )
+            service = IngestService(mock_ctx)
+            report = service.ingest_qif(file_path=qif_path)
 
             assert report.result == IngestResult.SKIPPED_DUPLICATE
             assert report.import_file_id == 5
             # Verify no transactions were inserted
-            mock_data_access.insert_transaction.assert_not_called()
+            mock_ctx.transactions.insert.assert_not_called()
         finally:
             os.unlink(qif_path)
 
-    def test_hash_mismatch_different_hash(self, mock_data_access, qif_content):
+    def test_hash_mismatch_different_hash(self, mock_ctx, qif_content):
         """Same filename but different hash should report mismatch."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write(qif_content)
@@ -159,22 +159,17 @@ LExpenses:Uncategorized
             mock_existing = MagicMock()
             mock_existing.id = 5
             mock_existing.file_hash = 'different_hash_value'
-            mock_data_access.get_import_file_by_scope.return_value = mock_existing
+            mock_ctx.dal.get_import_file_by_scope.return_value = mock_existing
 
-            service = IngestService()
-            service.data_access = mock_data_access
-
-            report = service.ingest_qif(
-                file_path=qif_path,
-                book_name='test'
-            )
+            service = IngestService(mock_ctx)
+            report = service.ingest_qif(file_path=qif_path)
 
             assert report.result == IngestResult.HASH_MISMATCH
             assert report.import_file_id == 5
         finally:
             os.unlink(qif_path)
 
-    def test_new_file_imported(self, mock_data_access, qif_content):
+    def test_new_file_imported(self, mock_ctx, qif_content):
         """New file should be imported successfully."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write(qif_content)
@@ -183,40 +178,31 @@ LExpenses:Uncategorized
 
         try:
             # No existing import
-            mock_data_access.get_import_file_by_scope.return_value = None
+            mock_ctx.dal.get_import_file_by_scope.return_value = None
 
             # Mock import file creation
             mock_import_file = MagicMock()
             mock_import_file.id = 10
-            mock_data_access.create_import_file.return_value = mock_import_file
+            mock_ctx.dal.create_import_file.return_value = mock_import_file
 
-            # Mock the category account for Expenses:Uncategorized
-            mock_category_account = MagicMock()
-            mock_category_account.id = 2
-            mock_category_account.full_name = 'Expenses:Uncategorized'
-            
-            def mock_get_account(book_id, name):
+            # Mock account lookups
+            def mock_lookup_by_name(name):
                 if name == 'Test:Account':
                     return MagicMock(id=1, full_name='Test:Account')
                 elif name == 'Expenses:Uncategorized':
-                    return mock_category_account
-                return None
+                    return MagicMock(id=2, full_name='Expenses:Uncategorized')
+                raise Exception(f"Account not found: {name}")
             
-            mock_data_access.get_account_by_fullname_for_book.side_effect = mock_get_account
+            mock_ctx.accounts.lookup_by_name.side_effect = mock_lookup_by_name
 
-            service = IngestService()
-            service.data_access = mock_data_access
-
-            report = service.ingest_qif(
-                file_path=qif_path,
-                book_name='test'
-            )
+            service = IngestService(mock_ctx)
+            report = service.ingest_qif(file_path=qif_path)
 
             assert report.result == IngestResult.IMPORTED
             assert report.import_file_id == 10
-            mock_data_access.create_import_file.assert_called_once()
-            # Verify transaction was inserted
-            mock_data_access.insert_transaction.assert_called_once()
+            mock_ctx.dal.create_import_file.assert_called_once()
+            # Verify transaction was inserted via TransactionService
+            mock_ctx.transactions.insert.assert_called_once()
         finally:
             os.unlink(qif_path)
 
@@ -225,32 +211,18 @@ class TestIngestServiceErrors:
     """Tests for error handling."""
 
     @pytest.fixture
-    def mock_data_access(self):
-        dal = MagicMock()
-        return dal
+    def mock_ctx(self):
+        """Create mock BookContext."""
+        ctx = MagicMock()
+        ctx.book = MagicMock(id=1, name='test')
+        ctx.dal = MagicMock()
+        ctx.accounts = MagicMock()
+        ctx.transactions = MagicMock()
+        return ctx
 
-    def test_book_not_found(self, mock_data_access):
-        """Should raise error if book not found."""
-        mock_data_access.get_book_by_name.return_value = None
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
-            f.write("!Account\nNTest:Account\n^\n")
-            f.flush()
-            qif_path = f.name
-
-        try:
-            service = IngestService()
-            service.data_access = mock_data_access
-
-            with pytest.raises(ValueError, match="Book 'nonexistent' not found"):
-                service.ingest_qif(qif_path, 'nonexistent')
-        finally:
-            os.unlink(qif_path)
-
-    def test_account_not_found(self, mock_data_access):
+    def test_account_not_found(self, mock_ctx):
         """Should raise error if account not found."""
-        mock_data_access.get_book_by_name.return_value = MagicMock(id=1, name='test')
-        mock_data_access.get_account_by_fullname_for_book.return_value = None
+        mock_ctx.accounts.lookup_by_name.side_effect = Exception("Account not found")
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write("!Account\nNNonexistent:Account\n^\n")
@@ -258,28 +230,24 @@ class TestIngestServiceErrors:
             qif_path = f.name
 
         try:
-            service = IngestService()
-            service.data_access = mock_data_access
+            service = IngestService(mock_ctx)
 
             with pytest.raises(ValueError, match="Account 'Nonexistent:Account' not found"):
-                service.ingest_qif(qif_path, 'test')
+                service.ingest_qif(qif_path)
         finally:
             os.unlink(qif_path)
 
-    def test_qif_without_account_info(self, mock_data_access):
+    def test_qif_without_account_info(self, mock_ctx):
         """Should raise error if QIF has no account info."""
-        mock_data_access.get_book_by_name.return_value = MagicMock(id=1, name='test')
-
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write("!Type:Bank\nD01/15/2024\nPTest\nT-100\n^\n")
             f.flush()
             qif_path = f.name
 
         try:
-            service = IngestService()
-            service.data_access = mock_data_access
+            service = IngestService(mock_ctx)
 
             with pytest.raises(ValueError, match="does not contain account information"):
-                service.ingest_qif(qif_path, 'test')
+                service.ingest_qif(qif_path)
         finally:
             os.unlink(qif_path)
