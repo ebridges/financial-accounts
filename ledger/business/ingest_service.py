@@ -9,7 +9,7 @@ Usage:
 import hashlib
 import os
 from dataclasses import dataclass
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 from enum import Enum
 
 from ledger.business.matching_service import MatchingService
@@ -18,8 +18,7 @@ from ledger.config import CATEGORY_RULES_PATH
 from ledger.util.qif import Qif
 from ledger.db.models import ImportFile
 
-if TYPE_CHECKING:
-    from ledger.business.book_context import BookContext
+from ledger.business.book_context import BookContext
 
 
 class IngestResult(Enum):
@@ -44,7 +43,7 @@ class IngestService:
     
     def __init__(
         self,
-        ctx: 'BookContext',
+        ctx: BookContext,
         matching_rules=None,
         category_rules_path: str = CATEGORY_RULES_PATH,
     ):
