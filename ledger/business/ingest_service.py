@@ -1,28 +1,16 @@
 # ingest_service.py
 """
-High-level ingestion service for importing QIF files.
-
-Orchestrates the Qif parser, CategorizeService, and MatchingService to
-provide file-level idempotent import with:
-- Automatic categorization for transactions without a category (L field absent)
-- Transfer/duplicate matching against existing ledger entries (if matching rules configured)
+Ingestion service for importing QIF files with file-level idempotency.
 
 Usage:
     with BookContext("personal", DB_URL) as ctx:
-        ingest_svc = IngestService(ctx)
-        report = ingest_svc.ingest_qif('statement.qif')
-        
-    # With matching enabled
-    with BookContext("personal", DB_URL) as ctx:
-        ingest_svc = IngestService(ctx, matching_rules=MatchingRules())
-        report = ingest_svc.ingest_qif('statement.qif')
+        report = IngestService(ctx).ingest_qif('statement.qif')
 """
 import hashlib
 import os
 from dataclasses import dataclass
 from typing import List, Optional, TYPE_CHECKING
 from enum import Enum
-from logging import getLogger
 
 from ledger.business.matching_service import MatchingService
 from ledger.business.categorize_service import CategorizeService
@@ -33,14 +21,12 @@ from ledger.db.models import ImportFile
 if TYPE_CHECKING:
     from ledger.business.book_context import BookContext
 
-logger = getLogger(__name__)
-
 
 class IngestResult(Enum):
     """Result of an ingest operation."""
-    IMPORTED = "imported"           # New file imported successfully
-    SKIPPED_DUPLICATE = "skipped"   # Same file (by hash) already imported
-    HASH_MISMATCH = "mismatch"      # Same filename but different hash - requires action
+    IMPORTED = "imported"
+    SKIPPED_DUPLICATE = "skipped"
+    HASH_MISMATCH = "mismatch"
 
 
 @dataclass
@@ -54,21 +40,7 @@ class IngestReport:
 
 
 class IngestService:
-    """
-    Service for ingesting QIF files with file-level idempotency.
-    
-    This service operates within a BookContext, using the context's
-    AccountService and TransactionService for account/transaction operations.
-    
-    Flow:
-    1. Parse QIF file
-    2. Check for duplicate imports (idempotency)
-    3. Categorize transactions where L field is missing
-    4. Convert to Transaction objects
-    5. Match against existing ledger (if matching rules configured)
-    6. Insert non-matched transactions
-    7. Record import metadata
-    """
+    """QIF ingestion with idempotency, categorization, and optional matching."""
     
     def __init__(
         self,
@@ -76,28 +48,12 @@ class IngestService:
         matching_rules=None,
         category_rules_path: str = CATEGORY_RULES_PATH,
     ):
-        """
-        Initialize IngestService with a BookContext.
-        
-        Args:
-            ctx: BookContext providing shared session, book, and services
-            matching_rules: Optional MatchingRules for transfer/duplicate matching
-            category_rules_path: Path to category rules JSON file
-        """
         self._ctx = ctx
         self.matching_rules = matching_rules
         self.category_rules_path = category_rules_path
 
     def ingest_qif(self, file_path: str) -> IngestReport:
-        """
-        Ingest a QIF file into the book.
-        
-        Args:
-            file_path: Path to the QIF file
-        
-        Returns:
-            IngestReport with details of the operation
-        """
+        """Ingest a QIF file. Returns IngestReport with operation details."""
         filename = os.path.basename(file_path)
         file_hash = self._compute_file_hash(file_path)
         book = self._ctx.book
@@ -108,13 +64,13 @@ class IngestService:
         if not account_name:
             raise ValueError("QIF file does not contain account information")
         
-        # Look up account via AccountService
+        # Look up account
         try:
             account = self._ctx.accounts.lookup_by_name(account_name)
         except Exception:
             raise ValueError(f"Account '{account_name}' not found in book '{book.name}'")
         
-        # Idempotency check (use DAL for import file tracking)
+        # Idempotency check
         existing = self._ctx.dal.get_import_file_by_scope(book.id, account.id, filename)
         if existing:
             if existing.file_hash == file_hash:
@@ -129,11 +85,8 @@ class IngestService:
                 message=f"File '{filename}' exists with different content"
             )
         
-        # Categorize raw QIF transactions where L field is missing
-        categorize_svc = CategorizeService(
-            ctx=self._ctx,
-            rules_path=self.category_rules_path
-        )
+        # Categorize transactions where L field is missing
+        categorize_svc = CategorizeService(ctx=self._ctx, rules_path=self.category_rules_path)
         
         for txn in qif.transactions:
             if not Qif.get_category(txn):
@@ -143,7 +96,7 @@ class IngestService:
                     category_name, _ = result
                     Qif.set_category(txn, category_name)
         
-        # Convert to Transaction objects using AccountService for lookups
+        # Convert to Transaction objects
         def resolve_account(name):
             try:
                 return self._ctx.accounts.lookup_by_name(name)
@@ -161,7 +114,6 @@ class IngestService:
             
             if accounts_to_query:
                 start, end = matching_svc.compute_candidate_date_range(transactions)
-                # Use TransactionService for querying
                 candidates = self._ctx.transactions.query_unmatched(
                     start, end, list(accounts_to_query)
                 )
@@ -170,25 +122,21 @@ class IngestService:
                     account, transactions, candidates
                 ):
                     if action == 'match':
-                        # Use TransactionService to mark matched
                         self._ctx.transactions.mark_matched(txn)
                         stats['matched'] += 1
                     else:
-                        # Use TransactionService to insert
                         self._ctx.transactions.insert(txn)
                         stats['imported'] += 1
             else:
-                # No matchable accounts configured, just import all
                 for txn in transactions:
                     self._ctx.transactions.insert(txn)
                     stats['imported'] += 1
         else:
-            # No matching rules, just import all
             for txn in transactions:
                 self._ctx.transactions.insert(txn)
                 stats['imported'] += 1
         
-        # Record import (use DAL for import file tracking)
+        # Record import
         dates = [t.transaction_date for t in transactions]
         import_file = self._ctx.dal.create_import_file(
             book_id=book.id,
@@ -211,12 +159,7 @@ class IngestService:
         )
     
     def list_imports(self) -> List[ImportFile]:
-        """
-        List all import files for this book.
-        
-        Returns:
-            List of ImportFile records
-        """
+        """List all import files for this book."""
         return self._ctx.dal.list_import_files_for_book(self._ctx.book.id)
     
     def get_import(self, import_file_id: int) -> Optional[ImportFile]:

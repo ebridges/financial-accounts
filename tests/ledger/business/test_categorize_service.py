@@ -94,15 +94,6 @@ class TestCategorizeServiceLookup:
             yield f.name
         os.unlink(f.name)
 
-    @pytest.fixture
-    def mock_ctx(self):
-        """Create mock BookContext."""
-        ctx = MagicMock()
-        ctx.book = MagicMock(id=1, name='test')
-        ctx.dal = MagicMock()
-        ctx.accounts = MagicMock()
-        return ctx
-
     def test_tier1_cache_hit(self, rules_file, mock_ctx):
         """Tier 1: Cache hit should be returned first."""
         # Mock cache hit

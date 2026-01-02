@@ -198,110 +198,25 @@ def test_is_match_success_with_regex(matching_service, mock_account, mock_transa
     assert result is True, "Expected True when description matches a regex pattern"
 
 
-def test_compare_splits_matching(mock_transaction, mock_split):
-    """Test when the candidate matches the imported transaction exactly."""
-    imported = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-    candidate = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-
-    result = MatchingService.compare_splits(imported, candidate)
-    assert result == candidate, "Expected candidate to be returned when splits match"
-
-
-def test_compare_splits_mismatching_amount(mock_transaction, mock_split):
-    """Test when a split amount does not match."""
-    imported = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-    candidate = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -50)]
-    )  # Amount mismatch
-
-    result = MatchingService.compare_splits(imported, candidate)
-    assert result is None, "Expected None when a split amount does not match"
-
-
-def test_compare_splits_mismatching_account(mock_transaction, mock_split):
-    """Test when an account ID does not match."""
-    imported = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-    candidate = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(3, 100), mock_split(2, -100)]
-    )  # Account mismatch
-
-    result = MatchingService.compare_splits(imported, candidate)
-    assert result is None, "Expected None when an account ID does not match"
-
-
-def test_compare_splits_extra_split(mock_transaction, mock_split):
-    """Test when candidate has an extra split that is not in imported."""
-    imported = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-    candidate = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100), mock_split(3, 50)]
-    )  # Extra split
-
-    result = MatchingService.compare_splits(imported, candidate)
-    assert result is None, "Expected None when candidate has an extra split"
-
-
-def test_compare_splits_missing_split(mock_transaction, mock_split):
-    """Test when candidate has a missing split compared to imported."""
-    imported = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-    candidate = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100)]
-    )  # Missing second split
-
-    result = MatchingService.compare_splits(imported, candidate)
-    assert result is None, "Expected None when candidate has a missing split"
-
+# Parametrized compare_splits tests
+@pytest.mark.parametrize("imported_splits,candidate_splits,should_match,description", [
+    ([(1, 100), (2, -100)], [(1, 100), (2, -100)], True, "exact match"),
+    ([(1, 100), (2, -100)], [(2, -100), (1, 100)], True, "unordered match"),
+    ([(1, 100), (2, -100)], [(1, 100), (2, -50)], False, "amount mismatch"),
+    ([(1, 100), (2, -100)], [(3, 100), (2, -100)], False, "account mismatch"),
+    ([(1, 100), (2, -100)], [(1, 100)], False, "missing split"),
+    ([(1, 100), (2, -100)], [(1, 100), (2, -100), (3, 50)], False, "extra split"),
+    ([], [], True, "both empty"),
+    ([(1, 100), (2, -100)], [], False, "candidate empty"),
+    ([], [(1, 100), (2, -100)], False, "imported empty"),
+])
 @pytest.mark.filterwarnings("ignore::ResourceWarning")
-def test_compare_splits_unordered_matching(mock_transaction, mock_split):
-    """Test when candidate splits match but are in a different order."""
-    imported = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-    candidate = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(2, -100), mock_split(1, 100)]
-    )  # Reversed order
-
+def test_compare_splits(mock_transaction, mock_split, imported_splits, candidate_splits, should_match, description):
+    """Test compare_splits with various split configurations."""
+    imported = mock_transaction(splits=[mock_split(*s) for s in imported_splits])
+    candidate = mock_transaction(splits=[mock_split(*s) for s in candidate_splits])
     result = MatchingService.compare_splits(imported, candidate)
-    assert result == candidate, "Expected candidate to be returned even if order differs"
-
-
-def test_compare_splits_empty_splits(mock_transaction):
-    """Test when both transactions have no splits (edge case)."""
-    imported = mock_transaction("2024-03-10", "Invoice 7890", [])
-    candidate = mock_transaction("2024-03-10", "Invoice 7890", [])
-
-    result = MatchingService.compare_splits(imported, candidate)
-    assert result == candidate, "Expected candidate to be returned when both are empty"
-
-
-def test_compare_splits_one_empty(mock_transaction, mock_split):
-    """Test when one transaction is empty and the other is not."""
-    imported = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-    candidate = mock_transaction("2024-03-10", "Invoice 7890", [])  # Candidate is empty
-
-    result = MatchingService.compare_splits(imported, candidate)
-    assert result is None, "Expected None when candidate has no splits"
-
-    imported_empty = mock_transaction("2024-03-10", "Invoice 7890", [])
-    candidate_nonempty = mock_transaction(
-        "2024-03-10", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
-    )
-
-    result = MatchingService.compare_splits(imported_empty, candidate_nonempty)
-    assert result is None, "Expected None when imported has no splits"
+    assert (result is not None) == should_match, f"Failed for: {description}"
 
 
 def test_matchable_accounts_success(mock_account, mock_matching_rules_from_config):

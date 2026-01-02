@@ -7,21 +7,6 @@ from ledger.business.account_service import AccountService
 
 
 @pytest.fixture
-def mock_dal():
-    """Create mock data access layer."""
-    dal = MagicMock()
-    dal.list_accounts_for_book.return_value = []
-    dal.create_account.return_value = MagicMock(id=1)
-    return dal
-
-
-@pytest.fixture
-def mock_book():
-    """Create mock book."""
-    return MagicMock(id=1, name='Test Book')
-
-
-@pytest.fixture
 def account_service(mock_dal, mock_book):
     """Create AccountService with mocked dependencies."""
     return AccountService(mock_dal, mock_book)

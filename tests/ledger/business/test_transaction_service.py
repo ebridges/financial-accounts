@@ -8,19 +8,6 @@ from ledger.db.models import Transaction
 
 
 @pytest.fixture
-def mock_dal():
-    """Create mock data access layer."""
-    dal = MagicMock()
-    return dal
-
-
-@pytest.fixture
-def mock_book():
-    """Create mock book."""
-    return MagicMock(id=1, name='Test Book')
-
-
-@pytest.fixture
 def transaction_service(mock_dal, mock_book):
     """Create TransactionService with mocked dependencies."""
     return TransactionService(mock_dal, mock_book)

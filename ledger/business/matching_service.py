@@ -2,12 +2,9 @@ import json
 import re
 from datetime import timedelta, date
 from typing import List, Tuple, Iterator, Optional
-from logging import info
 
 from ledger.config import MATCHING_RULES_PATH
-from ledger.business.base_service import BaseService
 from ledger.db.models import Transaction, Account
-from ledger.util.qif import Qif
 
 DEFAULT_DATE_OFFSET = 1
 
@@ -78,7 +75,7 @@ class MatchingRules:
         ]["date_offset"]
 
 
-class MatchingService(BaseService):
+class MatchingService:
     def __init__(self, matching_rules: MatchingRules):
         self.rules = matching_rules
 

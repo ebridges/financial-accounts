@@ -94,20 +94,6 @@ class TestIngestServiceIdempotency:
     """Tests for file-level idempotency behavior."""
 
     @pytest.fixture
-    def mock_ctx(self):
-        """Create mock BookContext."""
-        ctx = MagicMock()
-        ctx.book = MagicMock(id=1, name='test')
-        ctx.dal = MagicMock()
-        ctx.accounts = MagicMock()
-        ctx.transactions = MagicMock()
-        
-        # Setup default account lookup
-        ctx.accounts.lookup_by_name.return_value = MagicMock(id=1, full_name='Test:Account')
-        
-        return ctx
-
-    @pytest.fixture
     def qif_content(self):
         return """!Account
 NTest:Account
@@ -123,6 +109,9 @@ LExpenses:Uncategorized
 
     def test_skip_duplicate_same_hash(self, mock_ctx, qif_content):
         """Same file (by hash) should be skipped."""
+        # Setup default account lookup
+        mock_ctx.accounts.lookup_by_name.return_value = MagicMock(id=1, full_name='Test:Account')
+        
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write(qif_content)
             f.flush()
@@ -149,6 +138,9 @@ LExpenses:Uncategorized
 
     def test_hash_mismatch_different_hash(self, mock_ctx, qif_content):
         """Same filename but different hash should report mismatch."""
+        # Setup default account lookup
+        mock_ctx.accounts.lookup_by_name.return_value = MagicMock(id=1, full_name='Test:Account')
+        
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write(qif_content)
             f.flush()
@@ -209,16 +201,6 @@ LExpenses:Uncategorized
 
 class TestIngestServiceErrors:
     """Tests for error handling."""
-
-    @pytest.fixture
-    def mock_ctx(self):
-        """Create mock BookContext."""
-        ctx = MagicMock()
-        ctx.book = MagicMock(id=1, name='test')
-        ctx.dal = MagicMock()
-        ctx.accounts = MagicMock()
-        ctx.transactions = MagicMock()
-        return ctx
 
     def test_account_not_found(self, mock_ctx):
         """Should raise error if account not found."""
