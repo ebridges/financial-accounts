@@ -70,7 +70,6 @@ class DAL:
     def get_account(self, account_id: str) -> Account | None:
         return (
             self.session.query(Account)
-            .options(joinedload(Account.splits))
             .filter_by(id=account_id)
             .one_or_none()
         )
@@ -80,7 +79,6 @@ class DAL:
     ) -> Account | None:
         account = (
             self.session.query(Account)
-            .options(joinedload(Account.splits))
             .filter_by(book_id=book_id, full_name=acct_fullname)
             .one_or_none()
         )
@@ -91,7 +89,6 @@ class DAL:
     ) -> Account | None:
         account = (
             self.session.query(Account)
-            .options(joinedload(Account.splits))
             .filter_by(book_id=book_id, code=acct_code, name=acct_name)
             .one_or_none()
         )
@@ -100,7 +97,6 @@ class DAL:
     def list_accounts_for_book(self, book_id: str) -> list[Account]:
         return (
             self.session.query(Account)
-            .options(joinedload(Account.splits))
             .filter_by(book_id=book_id)
             .all()
         )
