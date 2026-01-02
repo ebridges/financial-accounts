@@ -65,7 +65,9 @@ class MatchingRules:
         logger.debug(f"Loaded rules for {len(self.rules.get('matching_rules', {}))} accounts")
 
     def matchable_accounts(self, account: Account) -> set:
-        return self.rules["matching_rules"].get(account.full_name, {}).keys()
+        result = self.rules["matching_rules"].get(account.full_name, {}).keys()
+        logger.debug(f"matchable_accounts: account='{account.full_name}', found={list(result)}")
+        return result
 
     def matching_patterns(
         self, import_account: Account, corresponding_account: Account
@@ -171,14 +173,15 @@ class MatchingService:
         corresponding_account = txn_import.corresponding_account(import_for)
         logger.debug(f"is_match: corresponding account = '{corresponding_account.full_name}'")
 
-        # 3. Check description against allowed patterns for this counterparty
+        # 3. Check IMPORT description against allowed patterns for this counterparty
+        #    (patterns describe what the importing account would see, not the candidate)
         patterns = self.rules.matching_patterns(import_for, corresponding_account)
         
-        description = txn_candidate.transaction_description or ""
+        description = txn_import.transaction_description or ""
         description_matched = any(re.match(pattern, description) for pattern in patterns)
 
         if not description_matched:
-            logger.debug(f"is_match: description '{description}' did not match any of {len(patterns)} patterns")
+            logger.debug(f"is_match: import description '{description}' did not match any of {len(patterns)} patterns")
             return False
         logger.debug(f"is_match: description matched")
 
