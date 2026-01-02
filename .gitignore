@@ -8,3 +8,4 @@ htmlcov/
 dist/
 validation/validation-test.db
 validation/real-world-test.db
+test-qif-files/
