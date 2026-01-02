@@ -148,6 +148,8 @@ class IngestService:
                 )
                 logger.debug(f"Found {len(candidates)} candidate transactions for matching")
                 
+                # Collect transactions to insert (excluding matched ones)
+                to_insert = []
                 for action, txn in matching_svc.match_transactions(
                     account, transactions, candidates
                 ):
@@ -155,18 +157,20 @@ class IngestService:
                         self._ctx.transactions.mark_matched(txn)
                         stats['matched'] += 1
                     else:
-                        self._ctx.transactions.insert(txn)
-                        stats['imported'] += 1
+                        to_insert.append(txn)
+                
+                # Batch insert all at once
+                if to_insert:
+                    self._ctx.transactions.insert_bulk(to_insert)
+                    stats['imported'] = len(to_insert)
             else:
                 logger.debug("No matchable accounts configured, inserting all")
-                for txn in transactions:
-                    self._ctx.transactions.insert(txn)
-                    stats['imported'] += 1
+                self._ctx.transactions.insert_bulk(transactions)
+                stats['imported'] = len(transactions)
         else:
             logger.debug("Matching disabled, inserting all transactions")
-            for txn in transactions:
-                self._ctx.transactions.insert(txn)
-                stats['imported'] += 1
+            self._ctx.transactions.insert_bulk(transactions)
+            stats['imported'] = len(transactions)
         
         # Record import
         dates = [t.transaction_date for t in transactions]

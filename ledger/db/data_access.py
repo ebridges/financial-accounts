@@ -109,11 +109,11 @@ class DAL:
     # Transactions
     # --------------------------------------------------------------------------
     def insert_transactions(self, transactions: list[Transaction]):
-        logger.debug(f"Inserting {len(transactions)} transactions")
+        logger.debug(f"Batch inserting {len(transactions)} transactions")
         try:
             self.session.add_all(transactions)
             self.session.commit()
-            logger.debug(f"Inserted {len(transactions)} transactions")
+            logger.debug(f"Batch inserted {len(transactions)} transactions")
         except Exception as e:
             logger.error(f"Failed to insert transactions: {e}")
             self.session.rollback()
