@@ -193,8 +193,8 @@ LExpenses:Uncategorized
             assert report.result == IngestResult.IMPORTED
             assert report.import_file_id == 10
             mock_ctx.dal.create_import_file.assert_called_once()
-            # Verify transaction was inserted via TransactionService
-            mock_ctx.transactions.insert.assert_called_once()
+            # Verify transactions were inserted via TransactionService (batch insert)
+            mock_ctx.transactions.insert_bulk.assert_called_once()
         finally:
             os.unlink(qif_path)
 

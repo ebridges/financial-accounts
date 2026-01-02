@@ -59,7 +59,7 @@ def test_create_account(dal, mock_session):
 
 
 def test_get_account(dal, mock_session):
-    mock_session.query().options().filter_by().one_or_none.return_value = Account(
+    mock_session.query().filter_by().one_or_none.return_value = Account(
         id="1", name="Test Account"
     )
 
@@ -68,7 +68,7 @@ def test_get_account(dal, mock_session):
 
 
 def test_list_accounts_for_book(dal, mock_session):
-    mock_session.query().options().filter_by().all.return_value = [
+    mock_session.query().filter_by().all.return_value = [
         Account(id="1", name="Test Account")
     ]
 

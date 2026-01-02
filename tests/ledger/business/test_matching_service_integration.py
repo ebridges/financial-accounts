@@ -102,8 +102,9 @@ def rules_data() -> dict:
                 A_1605: {
                     "date_offset": 1,
                     "description_patterns": [
-                        "^Online Transfer\\s+from\\s+CHK\\s*\\.\\.\\.138\\d?(?:\\s+transaction#:\\s*\\S*)?$",
-                        "^Online Transfer\\s+to\\s+CHK\\s*\\.\\.\\.138\\d?(?:\\s+transaction#:\\s*\\S+\\s+\\S+)?(?:\\s+t)?$",
+                        # When 1381 transfers to/from 1605, description shows "...1605"
+                        "^Online Transfer\\s+from\\s+CHK\\s*\\.\\.\\.1605(?:\\s+transaction#:\\s*\\S*)?$",
+                        "^Online Transfer\\s+to\\s+CHK\\s*\\.\\.\\.1605(?:\\s+transaction#:\\s*\\S+\\s+\\S+)?(?:\\s+t)?$",
                     ],
                 },
             },
@@ -121,8 +122,9 @@ def rules_data() -> dict:
                 A_1381: {
                     "date_offset": 2,
                     "description_patterns": [
-                        "^Online Transfer\\s+from\\s+CHK\\s*\\.\\.\\.1605(?:\\s+transaction#:\\s*\\d{2,})?$",
-                        "^Online Transfer\\s+to\\s+CHK\\s*\\.\\.\\.1605(?:\\s+transaction#:\\s*(?:\\d{2,}(?:\\s+\\d{2}/\\d{2})?|\\d{2}/\\d{2}))?(?:\\s+t)?$",
+                        # When 1605 transfers to/from 1381, description shows "...138"
+                        "^Online Transfer\\s+from\\s+CHK\\s*\\.\\.\\.138\\d?(?:\\s+transaction#:\\s*\\d{2,})?$",
+                        "^Online Transfer\\s+to\\s+CHK\\s*\\.\\.\\.138\\d?(?:\\s+transaction#:\\s*(?:\\d{2,}(?:\\s+\\d{2}/\\d{2})?|\\d{2}/\\d{2}))?(?:\\s+t)?$",
                     ],
                 }
             },
@@ -181,7 +183,7 @@ def matching_rules(config_file):
 
 
 @pytest.fixture(scope="module")
-def services(matching_rules, test_accounts):
+def services(config_file, test_accounts):
     """Initialize test database and provide DAL, TransactionService and MatchingService."""
     # Create engine and session
     engine = create_engine(TEST_DB_URL, echo=False)
@@ -207,7 +209,7 @@ def services(matching_rules, test_accounts):
     
     # Create TransactionService with DAL and book
     ts = TransactionService(dal, book)
-    ms = MatchingService(matching_rules)
+    ms = MatchingService(config_file)
     
     yield ts, ms, book, dal
     

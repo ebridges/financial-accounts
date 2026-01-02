@@ -107,7 +107,9 @@ def mock_matching_rules():
 @pytest.fixture
 def matching_service(mock_matching_rules):
     """Creates an instance of MatchingService with mocked rules."""
-    service = MatchingService(matching_rules=mock_matching_rules)
+    with patch.object(MatchingService, '__init__', lambda self, rules_path=None: None):
+        service = MatchingService()
+        service.rules = mock_matching_rules
     return service
 
 
@@ -157,17 +159,18 @@ def test_is_match_fails_on_splits(
 def test_is_match_fails_on_description(
     matching_service, mock_account, mock_transaction, mock_split
 ):
-    """Test when description does not match any pattern."""
+    """Test when import description does not match any pattern."""
     import_for = mock_account(1)
+    # Set import description to something that doesn't match (we check import, not candidate)
     txn_import = mock_transaction(
-        "2024-03-10", "Payment 12345", [mock_split(1, 100), mock_split(2, -100)]
+        "2024-03-10", "Random Text", [mock_split(1, 100), mock_split(2, -100)]
     )
     txn_candidate = mock_transaction(
-        "2024-03-08", "Random Text", [mock_split(1, 100), mock_split(2, -100)]
+        "2024-03-08", "Payment 12345", [mock_split(1, 100), mock_split(2, -100)]
     )
 
     result = matching_service.is_match(import_for, txn_import, txn_candidate)
-    assert result is False, "Expected False when description does not match any pattern"
+    assert result is False, "Expected False when import description does not match any pattern"
 
 
 def test_is_match_fails_on_date_range(matching_service, mock_account, mock_transaction, mock_split):
