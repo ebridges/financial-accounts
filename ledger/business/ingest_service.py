@@ -17,7 +17,7 @@ from ledger.business.book_context import BookContext
 logger = getLogger(__name__)
 from ledger.business.matching_service import MatchingService
 from ledger.business.categorize_service import CategorizeService
-from ledger.config import CATEGORY_RULES_PATH, UNCATEGORIZED_ACCOUNT
+from ledger.config import CATEGORY_RULES_PATH, UNCATEGORIZED_ACCOUNT, MATCHING_RULES_PATH
 from ledger.util.qif import Qif
 from ledger.db.models import ImportFile
 
@@ -46,7 +46,7 @@ class IngestService:
     def __init__(
         self,
         ctx: BookContext,
-        matching_rules=None,
+        matching_rules: str = MATCHING_RULES_PATH,
         category_rules_path: str = CATEGORY_RULES_PATH,
     ):
         self._ctx = ctx
