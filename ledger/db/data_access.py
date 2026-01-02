@@ -8,28 +8,6 @@ from sqlalchemy import and_, text
 from ledger.db.models import Book, Account, Transaction, Split, ImportFile, CategoryCache
 
 
-# def check_for_circular_path(
-#     session: Session, account_id: str, parent_account_id: Optional[str]
-# ) -> bool:
-#     """
-#     Returns True if a cycle is found, False otherwise.
-#     We'll do a simple upward traversal from parent_account_id until we either
-#     reach None or the 'account_id' itself.
-#     """
-#     if not parent_account_id:
-#         return False  # no parent => no cycle
-
-#     current_id = parent_account_id
-#     while current_id is not None:
-#         if current_id == account_id:
-#             return True
-#         parent = session.query(Account.parent_account_id).filter(Account.id == current_id).first()
-#         if parent is None or parent[0] is None:
-#             return False
-#         current_id = parent[0]
-#     return False
-
-
 class DAL:
     def __init__(self, session):
         self.session = session
@@ -46,30 +24,8 @@ class DAL:
         self.session.commit()
         return book
 
-    def get_book(self, book_id: str) -> Optional[Book]:
-        return self.session.query(Book).filter_by(id=book_id).one_or_none()
-
     def get_book_by_name(self, name: str) -> Optional[Book]:
         return self.session.query(Book).filter_by(name=name).one_or_none()
-
-    def list_books(self) -> List[Book]:
-        return self.session.query(Book).all()
-
-    def update_book_name(self, book_id: str, new_name: str) -> Optional[Book]:
-        book = self.session.query(Book).filter_by(id=book_id).one_or_none()
-        if not book:
-            return None
-        book.name = new_name
-        self.session.commit()
-        return book
-
-    def delete_book(self, book_id: str) -> bool:
-        book = self.session.query(Book).filter_by(id=book_id).one_or_none()
-        if not book:
-            return False
-        self.session.delete(book)
-        self.session.commit()
-        return True
 
     # --------------------------------------------------------------------------
     # Account
@@ -90,11 +46,6 @@ class DAL:
         Creates a new Account. The acct_type param must be one of
         ('ASSET','LIABILITY','INCOME','EXPENSE','EQUITY').
         """
-        # Check for circular references
-        # if parent_account_id:
-        #     if check_for_circular_path(self.session, str(new_id), parent_account_id):
-        #         raise ValueError("Circular parent reference detected.")
-
         account = Account(
             book_id=book_id,
             acct_type=acct_type,  # If using an Enum, do acct_type.value
@@ -139,45 +90,6 @@ class DAL:
             .one_or_none()
         )
         return account
-
-    def update_account(self, account_id: str, **kwargs) -> Optional[Account]:
-        """
-        Updates an account. If parent_account_id changes, verify no circular references.
-        """
-        account = self.session.query(Account).filter_by(id=account_id).one_or_none()
-        if not account:
-            return None
-
-        # new_parent_id = kwargs.get("parent_account_id", account.parent_account_id)
-        # if new_parent_id != account.parent_account_id:
-        #     # check for cycle
-        #     if check_for_circular_path(self.session, account_id, new_parent_id):
-        #         raise ValueError("Circular parent reference detected.")
-
-        # updatable fields
-        for field in [
-            "book_id",
-            "acct_type",
-            "code",
-            "name",
-            "description",
-            "hidden",
-            "placeholder",
-            "parent_account_id",
-        ]:
-            if field in kwargs:
-                setattr(account, field, kwargs[field])
-
-        self.session.commit()
-        return account
-
-    def delete_account(self, account_id: str) -> bool:
-        account = self.session.query(Account).filter_by(id=account_id).one_or_none()
-        if not account:
-            return False
-        self.session.delete(account)
-        self.session.commit()
-        return True
 
     def list_accounts_for_book(self, book_id: str) -> List[Account]:
         return (
@@ -276,18 +188,6 @@ class DAL:
 
         return query.all()
 
-    def update_transaction(self, txn_id: str, **kwargs) -> Optional[Transaction]:
-        txn = self.session.query(Transaction).filter_by(id=txn_id).one_or_none()
-        if not txn:
-            return None
-
-        for field in ["transaction_date", "transaction_description", "book_id"]:
-            if field in kwargs:
-                setattr(txn, field, kwargs[field])
-
-        self.session.commit()
-        return txn
-
     def delete_transaction(self, txn_id: str) -> bool:
         splits = self.session.query(Split).filter_by(transaction_id=txn_id)
         txn = self.session.query(Transaction).filter_by(id=txn_id).one_or_none()
@@ -320,39 +220,6 @@ class DAL:
         self.session.add(spl)
         self.session.commit()
         return spl
-
-    def update_split(self, split_id: str, **kwargs) -> Optional[Split]:
-        spl = self.session.query(Split).filter_by(id=split_id).one_or_none()
-        if not spl:
-            return None
-
-        for field in [
-            "transaction_id",
-            "account_id",
-            "amount",
-            "memo",
-            "reconcile_date",
-            "reconcile_state",
-        ]:
-            if field in kwargs:
-                setattr(spl, field, kwargs[field])
-
-        self.session.commit()
-        return spl
-
-    def delete_split(self, split_id: str) -> bool:
-        spl = self.session.query(Split).filter_by(id=split_id).one_or_none()
-        if not spl:
-            return False
-        self.session.delete(spl)
-        self.session.commit()
-        return True
-
-    def list_splits_for_transaction(self, txn_id: str) -> List[Split]:
-        return self.session.query(Split).filter_by(transaction_id=txn_id).all()
-
-    def list_splits_for_account(self, account_id: str) -> List[Split]:
-        return self.session.query(Split).filter_by(account_id=account_id).all()
 
     # --------------------------------------------------------------------------
     # ImportFile
@@ -410,31 +277,6 @@ class DAL:
             .all()
         )
 
-    def list_import_files_for_account(self, account_id: int) -> List[ImportFile]:
-        """List all import files for an account."""
-        return (
-            self.session.query(ImportFile)
-            .filter_by(account_id=account_id)
-            .order_by(ImportFile.created_at.desc())
-            .all()
-        )
-
-    def update_import_file(self, import_file_id: int, **kwargs) -> Optional[ImportFile]:
-        """Update an import file record."""
-        import_file = self.session.query(ImportFile).filter_by(id=import_file_id).one_or_none()
-        if not import_file:
-            return None
-
-        for field in [
-            "filename", "source_path", "archive_path", "source_type",
-            "file_hash", "coverage_start", "coverage_end", "row_count"
-        ]:
-            if field in kwargs:
-                setattr(import_file, field, kwargs[field])
-
-        self.session.commit()
-        return import_file
-
     # --------------------------------------------------------------------------
     # CategoryCache
     # --------------------------------------------------------------------------
@@ -468,23 +310,6 @@ class DAL:
             entry.hit_count += 1
             entry.last_seen_at = datetime.now()
             self.session.commit()
-
-    def list_category_cache(self) -> List[CategoryCache]:
-        """List all category cache entries ordered by hit count."""
-        return (
-            self.session.query(CategoryCache)
-            .order_by(CategoryCache.hit_count.desc())
-            .all()
-        )
-
-    def list_transactions_for_import_file(self, import_file_id: int) -> List[Transaction]:
-        """List all transactions from a specific import file."""
-        return (
-            self.session.query(Transaction)
-            .options(joinedload(Transaction.splits).joinedload(Split.account))
-            .filter(Transaction.import_file_id == import_file_id)
-            .all()
-        )
 
     # --------------------------------------------------------------------------
     # Management
