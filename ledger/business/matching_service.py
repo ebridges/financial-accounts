@@ -81,8 +81,8 @@ class MatchingRules:
 
 
 class MatchingService:
-    def __init__(self, matching_rules: MatchingRules):
-        self.rules = matching_rules
+    def __init__(self, rules_path: str = MATCHING_RULES_PATH):
+        self.rules = MatchingRules(rules_path)
 
     def compute_candidate_date_range(
         self, to_import: list[Transaction]
