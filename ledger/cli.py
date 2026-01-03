@@ -4,10 +4,10 @@ import sys
 import os
 
 from ledger.version import __version__
-from ledger.business.transaction_service import TransactionService
+from ledger.business.book_context import BookContext
 from ledger.business.management_service import ManagementService
-from ledger.business.account_service import AccountService
 from ledger.business.book_service import BookService
+from ledger.business.ingest_service import IngestService, IngestResult
 
 DEFAULT_DB_URL = "sqlite:///db/accounting-system.db"
 DEFAULT_BOOK = "personal"
@@ -108,7 +108,17 @@ def main():
         )
 
     elif args.command == "delete-transaction":
-        do_delete_transaction(args.db_url, args.txn_id)
+        do_delete_transaction(args.db_url, args.book_name, args.txn_id)
+
+    elif args.command == "ingest":
+        do_ingest(
+            args.db_url,
+            args.file_path,
+            args.book_name,
+        )
+
+    elif args.command == "list-imports":
+        do_list_imports(args.db_url, args.book_name)
 
     return 0
 
@@ -197,8 +207,28 @@ def parse_arguments():
     sp_book_txn.add_argument("--amount", "-a", required=True, help="Amount")
 
     # delete-transaction
-    sp_book_txn = subparsers.add_parser("delete-transaction", help="Delete a transaction by ID")
-    sp_book_txn.add_argument("--txn-id", "-T", required=True, help="Transaction ID")
+    sp_delete_txn = subparsers.add_parser("delete-transaction", help="Delete a transaction by ID")
+    sp_delete_txn.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
+    sp_delete_txn.add_argument("--txn-id", "-T", required=True, help="Transaction ID")
+
+    # ingest
+    sp_ingest = subparsers.add_parser(
+        "ingest", help="Ingest a QIF file with file-level idempotency"
+    )
+    sp_ingest.add_argument("file_path", help="Path to QIF file to ingest")
+    sp_ingest.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
+
+    # list-imports
+    sp_list_imports = subparsers.add_parser(
+        "list-imports", help="List all imported files for a book"
+    )
+    sp_list_imports.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
 
     return parser.parse_args()
 
@@ -222,9 +252,8 @@ def do_add_account(
     hidden,
     placeholder,
 ):
-    with AccountService().init_with_url(db_url=db_url) as acct_service:
-        new_account = acct_service.add_account(
-            book_name,
+    with BookContext(book_name, db_url) as ctx:
+        new_account = ctx.accounts.add_account(
             parent_code,
             parent_name,
             acct_name,
@@ -239,8 +268,8 @@ def do_add_account(
 
 
 def do_list_accounts(db_url, book_name):
-    with AccountService().init_with_url(db_url=db_url) as acct_service:
-        accounts = acct_service.list_accounts_in_book(book_name)
+    with BookContext(book_name, db_url) as ctx:
+        accounts = ctx.accounts.list_accounts()
         if not accounts:
             print(f"No accounts in book '{book_name}'.")
         else:
@@ -248,7 +277,7 @@ def do_list_accounts(db_url, book_name):
             for a in accounts:
                 parent_account_name = None
                 if a.parent_account_id:
-                    parent_account = acct_service.lookup_account_by_id(a.parent_account_id)
+                    parent_account = ctx.accounts.lookup_by_id(a.parent_account_id)
                     parent_account_name = parent_account.name
                 print(
                     f" - [ID={a.id}] Name={a.name}, Code={a.code}, Type={a.acct_type}, "
@@ -257,9 +286,8 @@ def do_list_accounts(db_url, book_name):
 
 
 def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credit_acct, amount):
-    with TransactionService().init_with_url(db_url=db_url) as txn_service:
-        txn_id = txn_service.enter_transaction(
-            book_name=book_name,
+    with BookContext(book_name, db_url) as ctx:
+        txn_id = ctx.transactions.enter_transaction(
             txn_date=txn_date,
             txn_desc=txn_desc,
             to_acct=debit_acct,
@@ -272,23 +300,89 @@ def do_book_transaction(db_url, book_name, txn_date, txn_desc, debit_acct, credi
         )
 
 
-def do_delete_transaction(db_url, txn_id):
-    with TransactionService().init_with_url(db_url=db_url) as txn_service:
+def do_delete_transaction(db_url, book_name, txn_id):
+    with BookContext(book_name, db_url) as ctx:
         try:
-            txn_service.delete_transaction(transaction_id=txn_id)
+            ctx.transactions.delete(transaction_id=int(txn_id))
+            print(f'Transaction ID {txn_id} successfully deleted.')
         except ValueError as e:
             print(f'Transaction ID {txn_id} was not deleted. {e}')
-        print(f'Transaction ID {txn_id} successfully deleted.')
 
 
 def do_init_db(db_url, confirm):
     # DROP and CREATE all tables (optional drop step if you truly want a fresh start)
     if confirm:
-        mgmt_service = ManagementService().init_with_url(db_url=db_url)
-        mgmt_service.reset_database()
+        with ManagementService().init_with_url(db_url=db_url) as mgmt_service:
+            mgmt_service.reset_database()
         print(f"Database initialized at ({db_url}).")
     else:
         print('Resetting the database requires the "--confirm" flag.')
+
+
+def do_ingest(db_url, file_path, book_name):
+    """Ingest a QIF file."""
+    # Verify file type
+    _, ext = os.path.splitext(file_path)
+    ext = ext.lower()
+    
+    if ext != '.qif':
+        print(f"Error: Unsupported file type '{ext}'. Use .qif")
+        return 1
+
+    with BookContext(book_name, db_url) as ctx:
+        try:
+            ingest_svc = IngestService(ctx)
+            report = ingest_svc.ingest_qif(file_path=file_path)
+
+            # Print result
+            if report.result == IngestResult.IMPORTED:
+                print(f"✓ {report.message}")
+                print(f"  Import ID: {report.import_file_id}")
+                print(f"  Transactions imported: {report.transactions_imported}")
+                if report.transactions_matched > 0:
+                    print(f"  Transactions matched: {report.transactions_matched}")
+            elif report.result == IngestResult.SKIPPED_DUPLICATE:
+                print(f"⊘ {report.message}")
+                print(f"  Existing import ID: {report.import_file_id}")
+            elif report.result == IngestResult.HASH_MISMATCH:
+                print(f"⚠ {report.message}")
+                print(f"  Existing import ID: {report.import_file_id}")
+                return 1
+
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
+    return 0
+
+
+def do_list_imports(db_url, book_name):
+    """List all imported files for a book."""
+    with BookContext(book_name, db_url) as ctx:
+        try:
+            ingest_svc = IngestService(ctx)
+            imports = ingest_svc.list_imports()
+
+            if not imports:
+                print(f"No imports found for book '{book_name}'.")
+                return 0
+
+            print(f"Imports for book '{book_name}':")
+            print("-" * 80)
+            for imp in imports:
+                print(f"  ID: {imp.id}")
+                print(f"    Filename: {imp.filename}")
+                print(f"    Type: {imp.source_type}")
+                print(f"    Coverage: {imp.coverage_start} to {imp.coverage_end}")
+                print(f"    Transactions: {imp.row_count}")
+                print(f"    Imported: {imp.created_at}")
+                print()
+
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
+    return 0
 
 
 def ensure_subdirs_for_sqlite(db_url: str):

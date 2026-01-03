@@ -1,0 +1,48 @@
+{
+    "Assets:Cash": [
+        {"payee": "^ATM WITHDRAWAL", "type": "regex"},
+        {"payee": "^NON-CHASE ATM WITHDRAW", "type": "regex"}
+    ],
+    "Assets:Checking Accounts:checking-chase-personal-1381": [
+        {"payee": "Online Transfer from CHK ...1381", "type": "literal"},
+        {"payee": "^Online Transfer from\\s+CHK ...1381", "type": "regex"},
+        {"payee": "AUTOMATIC PAYMENT - THANK", "type": "literal"},
+        {"payee": "ELECTRONIC PAYMENT-THANK YOU", "type": "literal"},
+        {"payee": "Payment Thank You - Web", "type": "literal"},
+        {"payee": "Payment Thank You-Mobile", "type": "literal"}
+    ],
+    "Assets:Checking Accounts:checking-chase-personal-1605": [
+        {"payee": "^Online Transfer to\\s+CHK ...1605", "type": "regex"},
+        {"payee": "Online Transfer to CHK ...1605", "type": "literal"}
+    ],
+    "Liabilities:Credit Cards:creditcard-chase-personal-6063": [
+        {"payee": "^CHASE CREDIT CRD AUTOPAY", "type": "regex"},
+        {"payee": "^Payment to Chase card ending in 6063", "type": "regex"},
+        {"payee": "AUTOMATIC PAYMENT - THANK", "type": "literal"},
+        {"payee": "Payment Thank You - Web", "type": "literal"},
+        {"payee": "Payment Thank You-Mobile", "type": "literal"}
+    ],
+    "Expenses:Food:Groceries": [
+        {"payee": "WHOLE FOODS", "type": "literal"},
+        {"payee": "^TRADER JOE", "type": "regex"},
+        {"payee": "COSTCO", "type": "literal"}
+    ],
+    "Expenses:Food:Restaurants": [
+        {"payee": "DOORDASH", "type": "literal"},
+        {"payee": "GRUBHUB", "type": "literal"},
+        {"payee": "UBER EATS", "type": "literal"}
+    ],
+    "Expenses:Transportation:Gas": [
+        {"payee": "SHELL", "type": "literal"},
+        {"payee": "EXXON", "type": "literal"},
+        {"payee": "CHEVRON", "type": "literal"}
+    ],
+    "Expenses:Utilities:Electric": [
+        {"payee": "CON EDISON", "type": "literal"},
+        {"payee": "^CONED", "type": "regex"}
+    ],
+    "Expenses:Utilities:Internet": [
+        {"payee": "VERIZON", "type": "literal"},
+        {"payee": "SPECTRUM", "type": "literal"}
+    ]
+}

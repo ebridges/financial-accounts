@@ -1,7 +1,11 @@
+from logging import getLogger
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from ledger.db.data_access import DAL
+
+logger = getLogger(__name__)
 
 
 class BaseService:
@@ -62,27 +66,36 @@ class BaseService:
         """
         # Don't manage lifecycle for external sessions
         if self._external_session:
+            logger.debug("External session, skipping cleanup")
             return False
         
+        logger.debug("Exiting BaseService context")
         try:
             if exc_type:
                 # Rollback on any exception
                 if self.session:
                     self.session.rollback()
-                print(f"Exception occurred: {exc_type}, {exc_value}")
+                logger.error(f"Exception during service operation: {exc_type.__name__}: {exc_value}")
             else:
                 # Commit successful operations
                 if self.session:
+                    logger.debug("Committing session")
                     self.session.commit()
             
             # Always close the session
             if self.data_access:
+                logger.debug("Closing data access")
                 self.data_access.close()
         except Exception as cleanup_error:
-            print(f"Error during session cleanup: {cleanup_error}")
+            logger.error(f"Error during session cleanup: {cleanup_error}")
         finally:
+            # Dispose engine to close all database connections
+            if self.engine:
+                logger.debug("Disposing engine")
+                self.engine.dispose()
             # Ensure session is cleared
             self.session = None
             self.data_access = None
+            self.engine = None
             
         return False  # Allow exception propagation

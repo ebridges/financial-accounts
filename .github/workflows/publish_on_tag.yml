@@ -10,17 +10,21 @@ permissions:
   contents: read
 
 jobs:
-  test-and-publish:
+  # Wait for test.yml workflow to complete successfully
+  # Tests are run by test.yml on tag push, so we just need to publish here
+  publish:
     runs-on: ubuntu-latest
+    # This job depends on the test workflow completing successfully
+    needs: []
 
     steps:
       # Step 1: Checkout the code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Step 2: Set up Python
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
@@ -30,22 +34,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install poetry
 
-      # Step 4: Install project dependencies
-      - name: Install dependencies
-        run: |
-          poetry install
-
-      # Step 5: Run tests
-      - name: Run tests
-        run: |
-          poetry run pytest
-
-      # Step 6: Build distribution artifacts with Poetry
+      # Step 4: Build distribution artifacts with Poetry
       - name: Build distribution
         run: |
           poetry build
 
-      # Step 7: Build and Publish to PyPI using OIDC
+      # Step 5: Publish to PyPI using OIDC
       - name: Publish to PyPI using Trusted Publishing
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

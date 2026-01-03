@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Testing
 - **Run tests**: `poetry run pytest`
-- **Run tests with coverage**: `poetry run pytest --cov=financial_accounts --cov-report=term`
+- **Run tests with coverage**: `poetry run pytest --cov=ledger --cov-report=term`
 - **Test configuration**: Tests are configured in pyproject.toml with coverage exclusions for CLI, version, and __init__ files
 
 ### Code Quality
@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run formatting**: `poetry run black .`
 
 ### CLI Application
-- **Main CLI**: `poetry run accounts-cli` or `python financial_accounts/cli.py`
+- **Main CLI**: `poetry run accounts-cli` or `python ledger/cli.py`
 - **Default database**: `sqlite:///db/accounting-system.db`
 - **Default book**: "personal"
 
@@ -51,10 +51,10 @@ accounts-cli delete-transaction -T <transaction-id>
 ### Service-Based Architecture
 The application follows a layered service-based architecture:
 
-1. **CLI Layer** (`financial_accounts/cli.py`): Command-line interface and argument parsing
-2. **Business Services** (`financial_accounts/business/`): Core business logic
-3. **Data Access Layer** (`financial_accounts/db/`): Database models and data access
-4. **Utilities** (`financial_accounts/util/`): Helper functions (QIF parsing, etc.)
+1. **CLI Layer** (`ledger/cli.py`): Command-line interface and argument parsing
+2. **Business Services** (`ledger/business/`): Core business logic
+3. **Data Access Layer** (`ledger/db/`): Database models and data access
+4. **Utilities** (`ledger/util/`): Helper functions (QIF parsing, etc.)
 
 ### Core Business Services
 - **BaseService**: Context manager pattern for database sessions

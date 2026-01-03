@@ -18,7 +18,21 @@ pytest-cov = "^6.0.0"
 gitpython = "^3.1.44"
 
 [tool.pytest.ini_options]
-addopts = [ "--cov=ledger", "--cov-report=term", "--ignore=release.py", "--ignore=ledger/version.py", "--ignore=ledger/cli.py"]
+addopts = [
+    "--cov=ledger",
+    "--cov-report=term",
+    "--ignore=release.py",
+    "--ignore=ledger/version.py",
+    "--ignore=ledger/cli.py",
+    "--ignore=validation/"
+]
+testpaths = ["tests"]
+markers = [
+    "unit: Fast unit tests with mocked dependencies",
+    "integration: Tests with real database and sample data",
+    "validation: Comprehensive validation tests",
+    "slow: Tests that take more than 10 seconds"
+]
 
 [tool.coverage.run]
 omit = [

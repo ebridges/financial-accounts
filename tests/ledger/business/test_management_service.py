@@ -1,10 +1,12 @@
+# test_management_service.py
+"""Tests for ManagementService."""
 import pytest
 import json
 import tempfile
 import os
 
 from ledger.db.models import Base
-from ledger.business.account_service import AccountService
+from ledger.business.book_context import BookContext
 from ledger.business.book_service import BookService
 from ledger.business.management_service import ManagementService
 
@@ -27,19 +29,19 @@ def db_url():
     finally:
         # Remove the file after the test is done
         os.remove(path)
-    # return 'sqlite:///:memory:'
 
 
 def test_export_account_hierarchy_as_json(db_url):
-    with (
-        ManagementService().init_with_url(db_url) as management_service,
-        BookService().init_with_url(db_url) as book_service,
-        AccountService().init_with_url(db_url) as account_service,
-    ):
+    # First, initialize database and create book
+    with ManagementService().init_with_url(db_url) as management_service:
         management_service.reset_database()
+    
+    with BookService().init_with_url(db_url) as book_service:
         book = book_service.create_new_book("Test Book")
-        root_account = account_service.add_account(
-            book_name=book.name,
+    
+    # Use BookContext for account operations
+    with BookContext("Test Book", db_url) as ctx:
+        root_account = ctx.accounts.add_account(
             parent_code=None,
             parent_name=None,
             acct_name="Root Account",
@@ -51,8 +53,8 @@ def test_export_account_hierarchy_as_json(db_url):
             placeholder=False,
         )
         print(f'Created root account: {root_account.id}')
-        child_account = account_service.add_account(
-            book_name=book.name,
+        
+        child_account = ctx.accounts.add_account(
             parent_code=root_account.code,
             parent_name=root_account.name,
             acct_name="Child Account",
@@ -65,7 +67,8 @@ def test_export_account_hierarchy_as_json(db_url):
         )
         print(f'Created child account: {child_account.id}')
 
-        # Export the account hierarchy as JSON
+    # Export hierarchy using ManagementService
+    with ManagementService().init_with_url(db_url) as management_service:
         json_output = management_service.export_account_hierarchy_as_json()
 
     # Verify the JSON output

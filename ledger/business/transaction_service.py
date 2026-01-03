@@ -1,111 +1,84 @@
-from typing import List
+# transaction_service.py
+"""Transaction service for managing transactions within a book."""
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, date
+from logging import getLogger
 
-from ledger.db.models import Transaction, Split
-from ledger.business.base_service import BaseService
+from ledger.db.models import Transaction, Book
+from ledger.db.data_access import DAL
+
+logger = getLogger(__name__)
 
 
-class TransactionService(BaseService):
-    def insert_bulk(self, txns: List[Transaction]):
-        self.data_access.insert_transactions(txns)
+class TransactionService:
+    """Book-scoped service for transaction operations. Use via BookContext."""
+    
+    def __init__(self, dal: DAL, book: Book):
+        self._dal = dal
+        self._book = book
 
-    def insert_transaction(self, txn: Transaction):
-        return self.data_access.insert_transaction(txn)
+    def insert_bulk(self, txns: list[Transaction]):
+        """Insert multiple transactions."""
+        self._dal.insert_transactions(txns)
+
+    def insert(self, txn: Transaction):
+        """Insert a single transaction. Returns the inserted transaction."""
+        return self._dal.insert_transaction(txn)
 
     def enter_transaction(
-        self, book_name, txn_date, txn_desc, to_acct, from_acct, amount, memo=None
+        self, txn_date: str, txn_desc: str, to_acct: str, from_acct: str, 
+        amount: str, memo: str = None
     ):
-        book = self.data_access.get_book_by_name(book_name)
-        if not book:
-            raise Exception(f"No book found named '{book_name}'.")
-
-        # parse amount
+        """Create a transaction with two splits (debit/credit). Returns transaction ID."""
         amt = Decimal(value=amount)
+        txn_date_parsed = datetime.strptime(txn_date, "%Y-%m-%d").date()
 
-        # parse date
-        date = datetime.strptime(txn_date, "%Y-%m-%d").date()
+        to_account = self._dal.get_account_by_fullname_for_book(self._book.id, to_acct)
+        if not to_account:
+            logger.error(f"Debit account '{to_acct}' not found in book '{self._book.name}'")
+            raise Exception(f"Debit account '{to_acct}' not found in book.")
 
-        to_acct = self.data_access.get_account_by_fullname_for_book(book.id, to_acct)
-        if not to_acct:
-            print(f"Debit account '{to_acct}' not found in book '{book_name}'.")
-            return 1
+        from_account = self._dal.get_account_by_fullname_for_book(self._book.id, from_acct)
+        if not from_account:
+            logger.error(f"Credit account '{from_acct}' not found in book '{self._book.name}'")
+            raise Exception(f"Credit account '{from_acct}' not found in book.")
 
-        from_acct = self.data_access.get_account_by_fullname_for_book(book.id, from_acct)
-        if not from_acct:
-            raise Exception(f"Credit account '{from_acct}' not found in book '{book_name}'.")
-
-        txn = self.data_access.create_transaction(
-            book_id=book.id,
-            transaction_date=date,
+        txn = self._dal.create_transaction(
+            book_id=self._book.id,
+            transaction_date=txn_date_parsed,
             transaction_description=txn_desc,
             memo=memo,
         )
 
-        # In double-entry accounting: debit account gets +amount, credit account gets -amount
-        self.data_access.create_split(transaction_id=txn.id, account_id=to_acct.id, amount=amt)    # debit
-        self.data_access.create_split(transaction_id=txn.id, account_id=from_acct.id, amount=-amt)  # credit
+        # Double-entry: debit account gets +amount, credit account gets -amount
+        self._dal.create_split(transaction_id=txn.id, account_id=to_account.id, amount=amt)
+        self._dal.create_split(transaction_id=txn.id, account_id=from_account.id, amount=-amt)
 
         return txn.id
 
-    def query_matchable_transactions(
+    def query_unmatched(
         self,
-        book_id: int,
-        start_date: datetime.date,
-        end_date: datetime.date,
-        accounts_to_match_for: List[str] = [],
-    ):
-        return self.data_access.query_for_unmatched_transactions_in_range(
-            book_id, start_date, end_date, accounts_to_match_for
+        start_date: date,
+        end_date: date,
+        account_names: list[str] = None,
+    ) -> list[Transaction]:
+        """Query unmatched transactions in date range, optionally filtered by accounts."""
+        return self._dal.query_for_unmatched_transactions_in_range(
+            self._book.id, start_date, end_date, account_names or []
         )
 
-    def delete_transaction(self, transaction_id):
-        txn = self.data_access.get_transaction(txn_id=transaction_id)
+    def delete(self, transaction_id: int):
+        """Delete a transaction. Raises ValueError if not found."""
+        txn = self._dal.get_transaction(txn_id=transaction_id)
         if not txn:
+            logger.error(f"Transaction id={transaction_id} not found for deletion")
             raise ValueError(f'No transaction exists with ID: {transaction_id}')
-        return self.data_access.delete_transaction(txn_id=transaction_id)
+        return self._dal.delete_transaction(txn_id=transaction_id)
 
-    def mark_transaction_matched(self, transaction) -> None:
-        self.data_access.update_transaction_match_status(transaction)
+    def mark_matched(self, transaction: Transaction) -> None:
+        """Mark a transaction as matched."""
+        self._dal.update_transaction_match_status(transaction)
 
-    def get_all_transactions_for_book(self, book_id):
-        return self.data_access.list_transactions_for_book(book_id=book_id)
-
-    def import_transactions_from_qif_data(self, transaction_data_list, account_service):
-        """
-        Import transactions from QIF data, resolving accounts within this service's session.
-        
-        Args:
-            transaction_data_list: List of transaction data dicts from qif.as_transaction_data()
-            account_service: AccountService instance (should share same session via constructor)
-        
-        Returns:
-            List of imported transaction IDs
-        """
-        imported_ids = []
-        
-        for data in transaction_data_list:
-            transaction = Transaction()
-            transaction.book_id = data['book_id']
-            transaction.transaction_date = data['transaction_date']
-            transaction.transaction_description = data['transaction_description']
-            
-            transaction.splits = []
-            for split_data in data['splits']:
-                split = Split()
-                # Resolve account within this service's session context
-                split.account = account_service.lookup_account_by_name(
-                    data['book_id'], split_data['account_name']
-                )
-                split.account_id = split.account.id
-                split.amount = split_data['amount']
-                # Note: Don't set split.transaction as it auto-appends via SQLAlchemy backref
-                transaction.splits.append(split)
-            
-            try:
-                txn_id = self.insert_transaction(transaction)
-                imported_ids.append(txn_id)
-            except Exception as e:
-                raise Exception(f"Failed to import transaction '{transaction.transaction_description}': {e}")
-        
-        return imported_ids
+    def get_all(self) -> list[Transaction]:
+        """Get all transactions in this book."""
+        return self._dal.list_transactions_for_book(book_id=self._book.id)
