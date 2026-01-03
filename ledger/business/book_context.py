@@ -89,9 +89,13 @@ class BookContext:
             if self._session:
                 logger.debug("Closing session")
                 self._session.close()
+            if self._engine:
+                logger.debug("Disposing engine")
+                self._engine.dispose()
             self._session = None
             self._dal = None
             self._book = None
             self._accounts = None
             self._transactions = None
+            self._engine = None
         return False

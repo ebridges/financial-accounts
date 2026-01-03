@@ -89,8 +89,13 @@ class BaseService:
         except Exception as cleanup_error:
             logger.error(f"Error during session cleanup: {cleanup_error}")
         finally:
+            # Dispose engine to close all database connections
+            if self.engine:
+                logger.debug("Disposing engine")
+                self.engine.dispose()
             # Ensure session is cleared
             self.session = None
             self.data_access = None
+            self.engine = None
             
         return False  # Allow exception propagation
