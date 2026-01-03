@@ -26,6 +26,59 @@ This is a double entry accounting system that provides a robust personal finance
 
 **Transaction matching** is the process of comparing and reconciling individual transactions recorded in a financial ledger against external records (e.g. bank statements, invoices, receipts) to ensure accuracy and completeness.
 
+### How Matching Works
+
+#### Purpose
+Matching identifies **transfer transactions** that appear in both accounts (e.g., sending money from checking to savings) to avoid importing duplicates.
+
+#### Matching Rules Structure (`etc/matching-config.json`)
+
+```json
+{
+  "matching_rules": {
+    "Assets:Checking Accounts:checking-chase-personal-1381": {
+      "Assets:Checking Accounts:checking-chase-personal-1605": {
+        "date_offset": 1,
+        "description_patterns": [
+          "^Online Transfer\\s+to\\s+CHK\\s*\\.\\.\\.1605"
+        ]
+      }
+    }
+  }
+}
+```
+
+- **Key**: The account being imported
+- **Value**: Accounts to check for matching candidates, with patterns and date tolerance
+
+#### Matching Process (per file import)
+
+1. **Find matchable accounts** - Look up which accounts might have matching transfers
+2. **Query candidates** - Fetch unmatched transactions from those accounts within the date range
+3. **For each imported transaction, check each candidate**:
+   - ✓ **Splits match** - Same account IDs and amounts
+   - ✓ **Description matches** - Import description matches a defined regex pattern
+   - ✓ **Date proximity** - Within `date_offset` days
+
+#### Decision Flow
+
+```
+Import Transaction → Found Match?
+                         │
+              ┌──────────┴──────────┐
+              ↓                     ↓
+          YES: Mark               NO: Insert
+          candidate as            transaction
+          "matched"               as new
+```
+
+#### Key Points
+
+- Matching happens **during import**, not after
+- The **first file** imported has no candidates (0 matches)
+- The **second file** finds candidates from the first import
+- Matched transactions are **not imported** - only the existing candidate is marked
+
 #### Key Steps:
 
 1. **Import Transactions**
@@ -87,7 +140,37 @@ Key matching scenarios:
 - Reconcile regularly and flag one-sided or unmatched entries
 
 
-## 3. Schema
+## 3. Architecture & Schema
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                      CLI Layer                            │
+│  (ingest, list-imports, categorize commands)             │
+└─────────────────────────┬────────────────────────────────┘
+                          │
+┌─────────────────────────▼────────────────────────────────┐
+│            High-Level Orchestration Services              │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐ │
+│  │IngestService│  │CategorizeService│ │MatchingService │ │
+│  └──────┬──────┘  └───────┬───────┘  └───────┬─────────┘ │
+│         │                 │                   │           │
+│  Coordinates:       Coordinates:        Coordinates:      │
+│  - CSV/QIF parsing  - Cache lookup      - Transaction    │
+│  - File archiving   - Rule matching       matching       │
+│  - Idempotency      - Split updates                      │
+└─────────┬─────────────────┬───────────────────┬──────────┘
+          │                 │                   │
+┌─────────▼─────────────────▼───────────────────▼──────────┐
+│              Mid-Level Business Services                  │
+│  TransactionService, AccountService, BookService          │
+└─────────────────────────┬────────────────────────────────┘
+                          │
+┌─────────────────────────▼────────────────────────────────┐
+│                    Data Access Layer                      │
+│  (Book, Account, Transaction, Split, ImportFile,         │
+│   CategoryCache CRUD operations)                          │
+└──────────────────────────────────────────────────────────┘
+```
 
 ![](docs/img/schema-diagram.png)
 
