@@ -2,11 +2,15 @@ name: Test Suite
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
   push:
-    branches: [main]
+    branches: [master]
     tags:
       - 'v*'
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   unit-tests:
@@ -25,8 +29,21 @@ jobs:
       - name: Install dependencies
         run: poetry install
       
-      - name: Run unit tests
-        run: poetry run pytest tests/ledger/ -v --tb=short --cov=ledger --cov-report=term
+      - name: Run unit tests with coverage
+        run: |
+          poetry run pytest tests/ledger/ -v --tb=short \
+            --cov=ledger \
+            --cov-report=xml:coverage-unit.xml \
+            --cov-report=term \
+            --junitxml=junit-unit.xml
+      
+      - name: Upload unit test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: |
+            coverage-unit.xml
+            junit-unit.xml
 
   integration-tests:
     name: Integration Tests
@@ -44,8 +61,21 @@ jobs:
       - name: Install dependencies
         run: poetry install
       
-      - name: Run integration tests
-        run: poetry run pytest -m integration -v --tb=short
+      - name: Run integration tests with coverage
+        run: |
+          poetry run pytest -m integration -v --tb=short \
+            --cov=ledger \
+            --cov-report=xml:coverage-integration.xml \
+            --cov-report=term \
+            --junitxml=junit-integration.xml
+      
+      - name: Upload integration test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: |
+            coverage-integration.xml
+            junit-integration.xml
 
   validation-tests:
     name: Validation Tests
@@ -66,6 +96,152 @@ jobs:
       - name: Install dependencies
         run: poetry install
       
-      - name: Run validation tests
-        run: poetry run pytest -m validation -v --tb=short
+      - name: Run validation tests with coverage
+        run: |
+          poetry run pytest -m validation -v --tb=short \
+            --cov=ledger \
+            --cov-report=xml:coverage-validation.xml \
+            --cov-report=term \
+            --junitxml=junit-validation.xml
+      
+      - name: Upload validation test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-validation
+          path: |
+            coverage-validation.xml
+            junit-validation.xml
 
+  coverage-comment:
+    name: Coverage Comment
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - name: Install Poetry
+        run: pip install poetry
+      
+      - name: Install dependencies
+        run: poetry install
+      
+      - name: Download unit coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage-unit/
+      
+      - name: Download integration coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-integration
+          path: coverage-integration/
+
+      - name: Generate combined coverage report
+        id: coverage
+        run: |
+          # Run all tests to get combined coverage
+          poetry run pytest tests/ -v --tb=short \
+            --cov=ledger \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term \
+            --junitxml=pytest.xml \
+            2>&1 | tee pytest-output.txt
+          
+          # Extract coverage percentage
+          COVERAGE=$(grep -oP 'TOTAL\s+\d+\s+\d+\s+\K\d+' pytest-output.txt || echo "0")
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+
+      - name: Create coverage comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Read pytest output
+            const pytestOutput = fs.readFileSync('pytest-output.txt', 'utf8');
+            
+            // Extract coverage table
+            const coverageMatch = pytestOutput.match(/={2,}\s*tests coverage\s*={2,}[\s\S]*?TOTAL\s+\d+\s+\d+\s+(\d+)%/i);
+            const coveragePercent = coverageMatch ? coverageMatch[1] : 'N/A';
+            
+            // Extract test results
+            const testMatch = pytestOutput.match(/=+\s*(\d+)\s+passed/);
+            const passedTests = testMatch ? testMatch[1] : '0';
+            
+            // Read unit test results
+            let unitCoverage = 'N/A';
+            try {
+              const unitXml = fs.readFileSync('coverage-unit/coverage-unit.xml', 'utf8');
+              const unitMatch = unitXml.match(/line-rate="([\d.]+)"/);
+              if (unitMatch) unitCoverage = Math.round(parseFloat(unitMatch[1]) * 100) + '%';
+            } catch (e) {}
+            
+            // Read integration test results  
+            let integrationCoverage = 'N/A';
+            try {
+              const intXml = fs.readFileSync('coverage-integration/coverage-integration.xml', 'utf8');
+              const intMatch = intXml.match(/line-rate="([\d.]+)"/);
+              if (intMatch) integrationCoverage = Math.round(parseFloat(intMatch[1]) * 100) + '%';
+            } catch (e) {}
+            
+            // Create badge color
+            const percent = parseInt(coveragePercent) || 0;
+            let color = 'red';
+            if (percent >= 80) color = 'brightgreen';
+            else if (percent >= 60) color = 'yellow';
+            else if (percent >= 40) color = 'orange';
+            
+            const comment = `## 📊 Test Coverage Report
+            
+            | Test Suite | Coverage |
+            |------------|----------|
+            | Unit Tests | ${unitCoverage} |
+            | Integration Tests | ${integrationCoverage} |
+            | **Combined** | **${coveragePercent}%** |
+            
+            ![Coverage](https://img.shields.io/badge/coverage-${coveragePercent}%25-${color})
+            
+            <details>
+            <summary>📋 Coverage Details</summary>
+            
+            \`\`\`
+            ${pytestOutput.match(/Name\s+Stmts[\s\S]*?TOTAL\s+\d+\s+\d+\s+\d+%/)?.[0] || 'Coverage details not available'}
+            \`\`\`
+            
+            </details>
+            
+            ✅ **${passedTests} tests passed**
+            `;
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(c => 
+              c.user.type === 'Bot' && c.body.includes('📊 Test Coverage Report')
+            );
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
