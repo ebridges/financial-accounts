@@ -43,8 +43,7 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ledger.business.book_service import BookService
-from ledger.business.account_service import AccountService
-from ledger.business.transaction_service import TransactionService
+from ledger.business.book_context import BookContext
 from ledger.business.management_service import ManagementService
 from ledger.business.matching_service import MatchingService, MatchingRules
 from ledger.util.qif import Qif
@@ -156,12 +155,11 @@ def setup_test_environment(reset=False):
         book = book_service.create_new_book(BOOK_NAME)
         print(f"  Book '{BOOK_NAME}' created")
     
-    # Create required accounts
-    with AccountService().init_with_url(DB_URL) as account_service:
+    # Create required accounts using BookContext
+    with BookContext(BOOK_NAME, DB_URL) as ctx:
         for full_name, details in EXPECTED_ACCOUNTS.items():
             try:
-                account_service.add_account(
-                    book_name=BOOK_NAME,
+                ctx.accounts.add_account(
                     parent_code=None,
                     parent_name=None,
                     acct_name=full_name.split(":")[-1],
@@ -177,17 +175,15 @@ def setup_test_environment(reset=False):
                 print(f"  ⚠️  Account '{full_name}' creation failed: {e}")
 
 
-def get_account_balances(account_service, book_name):
-    """Calculate current account balances"""
+def get_account_balances(ctx):
+    """Calculate current account balances using BookContext"""
     balances = {}
-    accounts = account_service.list_accounts_in_book(book_name)
+    accounts = ctx.accounts.list_accounts()
     
-    with TransactionService().init_with_url(DB_URL) as txn_service:
-        for account in accounts:
-            # Get all splits for this account
-            splits = txn_service.data_access.list_splits_for_account(account.id)
-            balance = sum(split.amount for split in splits)
-            balances[account.full_name] = balance
+    for account in accounts:
+        # Get all splits for this account via the relationship
+        balance = sum(split.amount for split in account.splits)
+        balances[account.full_name] = balance
             
     return balances
 
@@ -238,22 +234,22 @@ def test_individual_qif_import(qif_file, results):
         return
         
     # Get account balances before import
-    with AccountService().init_with_url(DB_URL) as account_service:
-        balances_before = get_account_balances(account_service, BOOK_NAME)
+    with BookContext(BOOK_NAME, DB_URL) as ctx:
+        balances_before = get_account_balances(ctx)
         
-    # Import transactions using session-safe approach
-    with TransactionService().init_with_url(DB_URL) as txn_service:
-        # Create account service that shares the same session
-        account_service = AccountService()
-        account_service.session = txn_service.session
-        account_service.data_access = txn_service.data_access
-        
-        book = account_service.data_access.get_book_by_name(BOOK_NAME)
-        transaction_data = qif.as_transaction_data(book.id)
+    # Import transactions using BookContext
+    with BookContext(BOOK_NAME, DB_URL) as ctx:
+        def resolve_account(name):
+            try:
+                return ctx.accounts.lookup_by_name(name)
+            except Exception:
+                return None
         
         try:
-            imported_ids = txn_service.import_transactions_from_qif_data(transaction_data, account_service)
-            imported_count = len(imported_ids)
+            transactions = qif.as_transactions(ctx.book.id, resolve_account)
+            if transactions:
+                ctx.transactions.insert_bulk(transactions)
+            imported_count = len(transactions)
         except Exception as e:
             results.add_error(f"Failed to import transactions: {e}")
             imported_count = 0
@@ -262,14 +258,14 @@ def test_individual_qif_import(qif_file, results):
         results.transactions_imported[qif_file] = imported_count
         
     # Get balances after import
-    with AccountService().init_with_url(DB_URL) as account_service:
-        balances_after = get_account_balances(account_service, BOOK_NAME)
+    with BookContext(BOOK_NAME, DB_URL) as ctx:
+        balances_after = get_account_balances(ctx)
         
     # Validate balance changes
     for account_name in balances_before:
-        change = balances_after[account_name] - balances_before[account_name]
+        change = balances_after.get(account_name, 0) - balances_before.get(account_name, 0)
         if change != 0:
-            print(f"  {account_name}: {balances_before[account_name]} → {balances_after[account_name]} (Δ{change})")
+            print(f"  {account_name}: {balances_before.get(account_name, 0)} → {balances_after.get(account_name, 0)} (Δ{change})")
 
 
 def test_matching_logic(results):
@@ -288,8 +284,8 @@ def test_matching_logic(results):
         return
         
     # Test each account's matching rules
-    with AccountService().init_with_url(DB_URL) as account_service:
-        accounts = account_service.list_accounts_in_book(BOOK_NAME)
+    with BookContext(BOOK_NAME, DB_URL) as ctx:
+        accounts = ctx.accounts.list_accounts()
         
         for account in accounts:
             try:
@@ -303,13 +299,9 @@ def test_balance_integrity(results):
     """Test that the books remain balanced"""
     print(f"\n⚖️  Testing balance integrity")
     
-    with (
-        AccountService().init_with_url(DB_URL) as account_service,
-        TransactionService().init_with_url(DB_URL) as txn_service
-    ):
+    with BookContext(BOOK_NAME, DB_URL) as ctx:
         # Get all transactions
-        book = account_service.data_access.get_book_by_name(BOOK_NAME)
-        transactions = txn_service.get_all_transactions_for_book(book.id)
+        transactions = ctx.transactions.get_all()
         
         unbalanced_transactions = []
         for txn in transactions:
@@ -329,12 +321,8 @@ def test_no_duplicate_transactions(results):
     """Test that no duplicate transactions were created"""
     print(f"\n🔍 Testing for duplicate transactions")
     
-    with (
-        AccountService().init_with_url(DB_URL) as account_service,
-        TransactionService().init_with_url(DB_URL) as txn_service
-    ):
-        book = account_service.data_access.get_book_by_name(BOOK_NAME)
-        transactions = txn_service.get_all_transactions_for_book(book.id)
+    with BookContext(BOOK_NAME, DB_URL) as ctx:
+        transactions = ctx.transactions.get_all()
         
         # Group by date and description
         transaction_groups = defaultdict(list)
