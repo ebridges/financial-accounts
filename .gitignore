@@ -6,6 +6,5 @@ htmlcov/
 .aider*
 .env
 dist/
-validation/validation-test.db
-validation/real-world-test.db
+validation/*.db
 test-qif-files/

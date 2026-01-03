@@ -44,26 +44,26 @@ COMPREHENSIVE_FILES = [
     "samples-6063.qif"
 ]
 
-# Expected patterns and their approximate counts
+# Expected patterns and their approximate counts (reduced test data)
 EXPECTED_PATTERNS = {
     "AUTOMATIC PAYMENT - THANK": {
-        "expected_count": 48,
+        "expected_count": 8,
         "accounts": ["checking-chase-personal-1381", "creditcard-chase-personal-6063"]
     },
     "CHASE CREDIT CRD AUTOPAY": {
-        "expected_count": 43,
+        "expected_count": 6,
         "accounts": ["checking-chase-personal-1381", "creditcard-chase-personal-6063"]
     },
     "Online Transfer": {
-        "expected_count": 1643,
+        "expected_count": 24,
         "accounts": ["checking-chase-personal-1381", "checking-chase-personal-1605"]
     },
     "Payment to Chase card": {
-        "expected_count": 34,
+        "expected_count": 6,
         "accounts": ["checking-chase-personal-1381", "creditcard-chase-personal-6063"]
     },
     "Payment Thank You": {
-        "expected_count": 14,
+        "expected_count": 5,
         "accounts": ["creditcard-chase-personal-6063", "checking-chase-personal-1381"]
     }
 }
@@ -158,7 +158,7 @@ class TestComprehensiveQifParsing:
         
         assert qif.account_info, "No account information"
         assert qif.transactions, "No transactions"
-        assert len(qif.transactions) > 100, "Expected substantial number of transactions"
+        assert len(qif.transactions) >= 10, "Expected at least 10 transactions"
         
         # Validate structure of all transactions
         for i, txn in enumerate(qif.transactions):
