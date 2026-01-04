@@ -17,6 +17,8 @@ from ledger.db.models import Book
 
 from ledger.business.account_service import AccountService
 from ledger.business.transaction_service import TransactionService
+from ledger.business.statement_service import StatementService
+from ledger.business.reconciliation_service import ReconciliationService
 
 logger = getLogger(__name__)
 
@@ -34,6 +36,8 @@ class BookContext:
         self._book = None
         self._accounts = None
         self._transactions = None
+        self._statements = None
+        self._reconciliation = None
     
     def __enter__(self):
         logger.debug(f"Entering BookContext for book '{self.book_name}'")
@@ -49,6 +53,8 @@ class BookContext:
         logger.debug(f"Resolved book '{self.book_name}' to id={self._book.id}")
         self._accounts = AccountService(self._dal, self._book)
         self._transactions = TransactionService(self._dal, self._book)
+        self._statements = StatementService(self)
+        self._reconciliation = ReconciliationService(self)
         logger.debug("BookContext services initialized")
         
         return self
@@ -76,6 +82,16 @@ class BookContext:
         """Get DAL for operations not covered by services (e.g., import files, cache)."""
         return self._require_entered('dal')
     
+    @property
+    def statements(self) -> 'StatementService':
+        """Get the statement service for importing and managing account statements."""
+        return self._require_entered('statements')
+    
+    @property
+    def reconciliation(self) -> 'ReconciliationService':
+        """Get the reconciliation service for verifying statement balances."""
+        return self._require_entered('reconciliation')
+    
     def __exit__(self, exc_type, exc_val, exc_tb):
         logger.debug(f"Exiting BookContext for book '{self.book_name}'")
         try:
@@ -97,5 +113,7 @@ class BookContext:
             self._book = None
             self._accounts = None
             self._transactions = None
+            self._statements = None
+            self._reconciliation = None
             self._engine = None
         return False

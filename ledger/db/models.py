@@ -40,6 +40,9 @@ class Book(Base, UpdatedAtMixin):
     accounts = relationship("Account", back_populates="book", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="book", cascade="all, delete-orphan")
     import_files = relationship("ImportFile", back_populates="book", cascade="all, delete-orphan")
+    account_statements = relationship(
+        "AccountStatement", back_populates="book", cascade="all, delete-orphan"
+    )
 
     def __str__(self):
         return self.name
@@ -241,6 +244,54 @@ class CategoryCache(Base, UpdatedAtMixin):
 
     def __str__(self):
         return f"CategoryCache({self.payee_norm} -> {self.account_id})"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class AccountStatement(Base, UpdatedAtMixin):
+    """
+    Tracks statement periods and reconciliation status for accounts.
+    
+    Each statement is uniquely identified by (book_id, account_id, start_date, end_date).
+    Stores balances from PDF statements and computed balances from transactions.
+    """
+    __tablename__ = 'account_statement'
+    id = Column(Integer, autoincrement=True, primary_key=True)
+    book_id = Column(
+        Integer, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
+    account_id = Column(
+        Integer, ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    start_balance = Column(DECIMAL(20, 4), nullable=False)
+    end_balance = Column(DECIMAL(20, 4), nullable=False)
+    statement_path = Column(String(1024))  # path to PDF
+    reconcile_status = Column(
+        String(1), server_default='n', nullable=False, default='n'
+    )  # n=not reconciled, r=reconciled, d=discrepancy
+    computed_end_balance = Column(DECIMAL(20, 4))  # calculated from transactions
+    discrepancy = Column(DECIMAL(20, 4))  # null=not computed, 0=reconciled, other=mismatch
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("reconcile_status IN ('n','r','d')"),
+        UniqueConstraint(
+            'book_id', 'account_id', 'start_date', 'end_date',
+            name='uq_account_statement_period'
+        ),
+    )
+
+    book = relationship("Book", back_populates="account_statements")
+    account = relationship("Account")
+
+    def __str__(self):
+        return (
+            f"AccountStatement({self.account.name if self.account else self.account_id}, "
+            f"{self.start_date} - {self.end_date}, status={self.reconcile_status})"
+        )
 
     def __repr__(self):
         return self.__str__()
