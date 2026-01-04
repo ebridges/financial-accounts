@@ -23,7 +23,7 @@ from ledger.business.book_context import BookContext
 from ledger.business.statement_service import ImportResult
 from ledger.db.models import Base
 from ledger.util.statement_uri import AccountUri
-from ledger.util.pdf_parser import StatementParseError, STATEMENT_DATE_PATTERNS
+from ledger.util.pdf_parser import StatementParseError, STATEMENT_PATTERNS
 
 
 class ResultStatus(str, Enum):
@@ -65,7 +65,7 @@ class VerificationReport:
 
 def get_supported_account_prefixes() -> set[str]:
     """Get account type prefixes that have parser patterns."""
-    return set(STATEMENT_DATE_PATTERNS.keys())
+    return set(STATEMENT_PATTERNS.keys())
 
 
 def is_supported_account(account_slug: str, supported_prefixes: set[str]) -> bool:
