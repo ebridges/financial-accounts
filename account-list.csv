@@ -1,0 +1,144 @@
+account_code,fullname,name,parent_name,parent_code,account_type,description,hidden,placeholder
+00000,Root Account,Root Account,,,ROOT,,0,0
+10000,Assets,Assets,Root Account,00000,ASSET,,0,0
+12000,Assets:Checking Accounts,Checking Accounts,Assets,10000,ASSET,,0,0
+12100,Assets:Checking Accounts:checking-chase-personal-1381,checking-chase-personal-1381,Checking Accounts,12000,ASSET,,0,0
+12200,Assets:Checking Accounts:checking-chase-personal-1605,checking-chase-personal-1605,Checking Accounts,12000,ASSET,,0,0
+12300,Assets:Checking Accounts:checking-ncsb-personal-3700,checking-ncsb-personal-3700,Checking Accounts,12000,ASSET,,0,0
+13000,Assets:Investment Accounts,Investment Accounts,Assets,10000,ASSET,,0,0
+13100,Assets:Investment Accounts:merrill-lynch-10273,merrill-lynch-10273,Investment Accounts,13000,ASSET,,0,0
+13200,Assets:Investment Accounts:coinbase,coinbase,Investment Accounts,13000,ASSET,,0,0
+13300,Assets:Investment Accounts:US Treasury Bond,US Treasury Bond,Investment Accounts,13000,ASSET,,0,0
+14000,Assets:Cash,Cash,Assets,10000,ASSET,,0,0
+15000,Assets:Savings Accounts,Savings Accounts,Assets,10000,ASSET,,0,1
+15100,Assets:Savings Accounts:acorn-savings,acorn-savings,Savings Accounts,15000,ASSET,,0,0
+16100,Assets:Wilmington Lot,Wilmington Lot,Assets,10000,ASSET,,0,0
+30000,Expenses,Expenses,Root Account,00000,EXPENSE,,0,1
+30100,Expenses:Transportation,Transportation,Expenses,30000,EXPENSE,,0,1
+30105,Expenses:Transportation:Auto Insurance,Auto Insurance,Transportation,30100,EXPENSE,,0,0
+30106,Expenses:Transportation:Auto Purchase,Auto Purchase,Transportation,30100,EXPENSE,,0,0
+30110,Expenses:Transportation:Gas,Gas,Transportation,30100,EXPENSE,,0,0
+30115,Expenses:Transportation:Parking,Parking,Transportation,30100,EXPENSE,,0,0
+30120,Expenses:Transportation:Commuting,Commuting,Transportation,30100,EXPENSE,,0,0
+30125,Expenses:Transportation:Repairs,Repairs,Transportation,30100,EXPENSE,,0,0
+30130,Expenses:Transportation:Taxi,Taxi,Transportation,30100,EXPENSE,,0,0
+30135,Expenses:Transportation:Tolls,Tolls,Transportation,30100,EXPENSE,,0,0
+30140,Expenses:Transportation:Violations,Violations,Transportation,30100,EXPENSE,,0,0
+30145,Expenses:Transportation:Fees,Fees,Transportation,30100,EXPENSE,,0,0
+30200,Expenses:Utilities,Utilities,Expenses,30000,EXPENSE,,0,1
+30205,Expenses:Utilities:Home Phone & Internet,Home Phone & Internet,Utilities,30200,EXPENSE,,0,0
+30210,Expenses:Utilities:Mobile Phone,Mobile Phone,Utilities,30200,EXPENSE,,0,0
+30215,Expenses:Utilities:Electricity,Electricity,Utilities,30200,EXPENSE,,0,0
+30220,Expenses:Utilities:Water,Water,Utilities,30200,EXPENSE,,0,0
+30300,Expenses:Business Services,Business Services,Expenses,30000,EXPENSE,,0,1
+30305,Expenses:Business Services:Office Supplies,Office Supplies,Business Services,30300,EXPENSE,,0,0
+30310,Expenses:Business Services:Printing,Printing,Business Services,30300,EXPENSE,,0,0
+30315,Expenses:Business Services:Shipping,Shipping,Business Services,30300,EXPENSE,,0,0
+30320,Expenses:Business Services:Software Services,Software Services,Business Services,30300,EXPENSE,,0,0
+30325,Expenses:Business Services:Job Search,Job Search,Business Services,30300,EXPENSE,,0,0
+30395,Expenses:Business Services:Miscellaneous,Miscellaneous,Business Services,30300,EXPENSE,,0,0
+30400,Expenses:Education,Education,Expenses,30000,EXPENSE,,0,1
+30405,Expenses:Education:Tutoring,Tutoring,Education,30400,EXPENSE,,0,0
+30410,Expenses:Education:Books & Supplies,Books & Supplies,Education,30400,EXPENSE,,0,0
+30415,Expenses:Education:Conferences,Conferences,Education,30400,EXPENSE,,0,0
+30420,Expenses:Education:Tuition,Tuition,Education,30400,EXPENSE,,0,0
+30500,Expenses:Entertainment,Entertainment,Expenses,30000,EXPENSE,,0,1
+30505,Expenses:Entertainment:Amusement,Amusement,Entertainment,30500,EXPENSE,,0,0
+30510,Expenses:Entertainment:Arts,Arts,Entertainment,30500,EXPENSE,,0,0
+30515,Expenses:Entertainment:Mobile Apps,Mobile Apps,Entertainment,30500,EXPENSE,,0,0
+30520,Expenses:Entertainment:Movies,Movies,Entertainment,30500,EXPENSE,,0,0
+30525,Expenses:Entertainment:Music,Music,Entertainment,30500,EXPENSE,,0,0
+30530,Expenses:Entertainment:Books & Periodicals,Books & Periodicals,Entertainment,30500,EXPENSE,,0,0
+30535,Expenses:Entertainment:Hobbies,Hobbies,Entertainment,30500,EXPENSE,,0,0
+30600,Expenses:Fees & Charges,Fees & Charges,Expenses,30000,EXPENSE,,0,1
+30605,Expenses:Fees & Charges:ATM Fee,ATM Fee,Fees & Charges,30600,EXPENSE,,0,0
+30610,Expenses:Fees & Charges:Bank Fee,Bank Fee,Fees & Charges,30600,EXPENSE,,0,0
+30615,Expenses:Fees & Charges:Finance Charge,Finance Charge,Fees & Charges,30600,EXPENSE,,0,0
+30620,Expenses:Fees & Charges:Late Fee,Late Fee,Fees & Charges,30600,EXPENSE,,0,0
+30625,Expenses:Fees & Charges:Service Fee,Service Fee,Fees & Charges,30600,EXPENSE,,0,0
+30635,Expenses:Fees & Charges:Membership Fees,Membership Fees,Fees & Charges,30600,EXPENSE,,0,0
+30700,Expenses:Financial,Financial,Expenses,30000,EXPENSE,,0,1
+30705,Expenses:Financial:Accounting Services,Accounting Services,Financial,30700,EXPENSE,,0,0
+30710,Expenses:Financial:Life Insurance,Life Insurance,Financial,30700,EXPENSE,,0,0
+30715,Expenses:Financial:Option Exercise,Option Exercise,Financial,30700,INCOME,,0,0
+30800,Expenses:Food & Dining,Food & Dining,Expenses,30000,EXPENSE,,0,1
+30805,Expenses:Food & Dining:Alcohol & Bars,Alcohol & Bars,Food & Dining,30800,EXPENSE,,0,0
+30810,Expenses:Food & Dining:Coffee Shops,Coffee Shops,Food & Dining,30800,EXPENSE,,0,0
+30815,Expenses:Food & Dining:Groceries,Groceries,Food & Dining,30800,EXPENSE,,0,0
+30820,Expenses:Food & Dining:Restaurants,Restaurants,Food & Dining,30800,EXPENSE,,0,0
+30900,Expenses:Gifts,Gifts,Expenses,30000,EXPENSE,,0,1
+30905,Expenses:Gifts:Charity,Charity,Gifts,30900,EXPENSE,,0,0
+30910,Expenses:Gifts:Gift,Gift,Gifts,30900,EXPENSE,,0,0
+30915,Expenses:Gifts:Holiday Gratuity,Holiday Gratuity,Gifts,30900,EXPENSE,,0,0
+31000,Expenses:Personal Care,Personal Care,Expenses,30000,EXPENSE,,0,1
+31005,Expenses:Personal Care:Dentist,Dentist,Personal Care,31000,EXPENSE,,0,0
+31010,Expenses:Personal Care:Doctor,Doctor,Personal Care,31000,EXPENSE,,0,0
+31013,Expenses:Personal Care:Therapy,Therapy,Personal Care,31000,EXPENSE,,0,0
+31015,Expenses:Personal Care:Eyecare,Eyecare,Personal Care,31000,EXPENSE,,0,0
+31020,Expenses:Personal Care:Gym,Gym,Personal Care,31000,EXPENSE,,0,0
+31025,Expenses:Personal Care:Health Insurance,Health Insurance,Personal Care,31000,EXPENSE,,0,0
+31030,Expenses:Personal Care:Pharmacy,Pharmacy,Personal Care,31000,EXPENSE,,0,0
+31035,Expenses:Personal Care:Sports,Sports,Personal Care,31000,EXPENSE,,0,0
+31040,Expenses:Personal Care:Hair,Hair,Personal Care,31000,EXPENSE,,0,0
+31045,Expenses:Personal Care:Spa & Massage,Spa & Massage,Personal Care,31000,EXPENSE,,0,0
+31050,Expenses:Personal Care:Physical Therapy,Physical Therapy,Personal Care,31000,EXPENSE,,0,0
+31095,Expenses:Personal Care:Miscellaneous,Miscellaneous,Personal Care,31000,EXPENSE,,0,0
+31100,Expenses:Home,Home,Expenses,30000,EXPENSE,,0,1
+31105,Expenses:Home:Condo Fee,Condo Fee,Home,31100,EXPENSE,,0,0
+31110,Expenses:Home:Furnishings,Furnishings,Home,31100,EXPENSE,,0,0
+31115,Expenses:Home:Home Improvement,Home Improvement,Home,31100,EXPENSE,,0,0
+31120,Expenses:Home:Home Insurance,Home Insurance,Home,31100,EXPENSE,,0,0
+31125,Expenses:Home:Home Services,Home Services,Home,31100,EXPENSE,,0,0
+31130,Expenses:Home:Home Supplies,Home Supplies,Home,31100,EXPENSE,,0,0
+31135,Expenses:Home:Laundry,Laundry,Home,31100,EXPENSE,,0,0
+31145,Expenses:Home:Storage Rental,Storage Rental,Home,31100,EXPENSE,,0,0
+31200,Expenses:Children,Children,Expenses,30000,EXPENSE,,0,1
+31205,Expenses:Children:529 Account,529 Account,Children,31200,EXPENSE,,0,0
+31210,Expenses:Children:Allowance,Allowance,Children,31200,EXPENSE,,0,0
+31215,Expenses:Children:Babysitter,Babysitter,Children,31200,EXPENSE,,0,0
+31220,Expenses:Children:Kids Activities,Kids Activities,Children,31200,EXPENSE,,0,0
+31225,Expenses:Children:Toys,Toys,Children,31200,EXPENSE,,0,0
+31400,Expenses:Shopping,Shopping,Expenses,30000,EXPENSE,,0,1
+31405,Expenses:Shopping:Clothing,Clothing,Shopping,31400,EXPENSE,,0,0
+31410,Expenses:Shopping:Electronics,Electronics,Shopping,31400,EXPENSE,,0,0
+31415,Expenses:Shopping:Sporting Goods,Sporting Goods,Shopping,31400,EXPENSE,,0,0
+31420,Expenses:Shopping:Miscellaneous,Miscellaneous,Shopping,31400,EXPENSE,,0,0
+31500,Expenses:Taxes,Taxes,Expenses,30000,EXPENSE,,0,1
+31505,Expenses:Taxes:Federal Tax,Federal Tax,Taxes,31500,EXPENSE,,0,0
+31510,Expenses:Taxes:Local Tax,Local Tax,Taxes,31500,EXPENSE,,0,0
+31515,Expenses:Taxes:Property Tax,Property Tax,Taxes,31500,EXPENSE,,0,0
+31520,Expenses:Taxes:Sales Tax,Sales Tax,Taxes,31500,EXPENSE,,0,0
+31525,Expenses:Taxes:State Tax,State Tax,Taxes,31500,EXPENSE,,0,0
+31530,Expenses:Taxes:Wilmington,Wilmington,Taxes,31500,EXPENSE,,0,0
+31531,Expenses:Taxes:Wilmington:Property Tax,Property Tax,Wilmington,31530,EXPENSE,,0,0
+31532,Expenses:Taxes:Wilmington:School Tax,School Tax,Wilmington,31530,EXPENSE,,0,0
+31600,Expenses:Travel,Travel,Expenses,30000,EXPENSE,,0,1
+31605,Expenses:Travel:Air Travel,Air Travel,Travel,31600,EXPENSE,,0,0
+31610,Expenses:Travel:Hotel,Hotel,Travel,31600,EXPENSE,,0,0
+31615,Expenses:Travel:Rental Car,Rental Car,Travel,31600,EXPENSE,,0,0
+31620,Expenses:Travel:Vacation,Vacation,Travel,31600,EXPENSE,,0,0
+31700,Expenses:Professional Services,Professional Services,Expenses,30000,EXPENSE,,0,1
+31710,Expenses:Professional Services:Accounting,Accounting,Professional Services,31700,EXPENSE,,0,0
+31720,Expenses:Professional Services:Legal,Legal,Professional Services,31700,EXPENSE,,0,0
+31730,Expenses:Professional Services:Real Estate,Real Estate,Professional Services,31700,EXPENSE,,0,0
+31735,Expenses:Professional Services:Financial Planner,Financial Planner,Professional Services,31700,INCOME,,0,0
+31800,Expenses:Uncategorized,Uncategorized,Expenses,30000,EXPENSE,,0,0
+31810,Expenses:Uncategorized:Check,Check,Uncategorized,31800,EXPENSE,,0,0
+31820,Expenses:Uncategorized:Miscellaneous,Miscellaneous,Uncategorized,31800,EXPENSE,,0,0
+40000,Income,Income,Root Account,00000,INCOME,,0,0
+41100,Income:Salary,Salary,Income,40000,INCOME,,0,0
+42100,Income:Interest,Interest,Income,40000,INCOME,,0,0
+43100,Income:Consulting,Consulting,Income,40000,INCOME,,0,0
+44000,Income:Credits,Credits,Income,40000,INCOME,,0,0
+45000,Income:Gift,Gift,Income,40000,INCOME,,0,0
+46000,Income:Reimbursements,Reimbursements,Income,40000,INCOME,,0,0
+47000,Income:Unemployment,Unemployment,Income,40000,INCOME,,0,0
+49000,Income:Miscellaneous,Miscellaneous,Income,40000,INCOME,,0,0
+49950,Income:Uncategorized,Uncategorized,Income,40000,INCOME,,0,0
+50000,Liabilities,Liabilities,Root Account,00000,LIABILITY,,0,0
+51000,Liabilities:Credit Cards,Credit Cards,Liabilities,50000,LIABILITY,,0,1
+51500,Liabilities:Credit Cards:creditcard-chase-personal-6063,creditcard-chase-personal-6063,Credit Cards,51000,LIABILITY,,0,0
+52000,Liabilities:Loans,Loans,Liabilities,50000,LIABILITY,,0,1
+52100,Liabilities:Loans:mortgage-bofa-4424,mortgage-bofa-4424,Loans,52000,LIABILITY,,0,0
+60000,Equity,Equity,Root Account,00000,EQUITY,,0,0
+90000,Unspecified,Unspecified,Root Account,00000,EXPENSE,,0,0
