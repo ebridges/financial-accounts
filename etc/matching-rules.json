@@ -50,10 +50,12 @@
               ]
           },
           "Assets:Checking Accounts:checking-chase-business-9210": {
-              "date_offset": 2,
+              "date_offset": 3,
               "description_patterns": [
                   "^TRANSFER\\s+(?:TO|FROM)\\s+CHK\\s+X+\\d+$",
-                  "^Online Transfer\\s+(?:from|to)\\s+CHK"
+                  "^Online Transfer\\s+(?:from|to)\\s+CHK",
+                  "^Online Transfer\\s+\\d+\\s+to\\s+Roja",
+                  "^JPMorgan Chase Ext Trnsfr\\s+\\d+"
               ]
           }
       },
@@ -117,10 +119,12 @@
       },
       "Assets:Checking Accounts:checking-chase-business-9210": {
           "Assets:Checking Accounts:checking-chase-personal-1381": {
-              "date_offset": 2,
+              "date_offset": 3,
               "description_patterns": [
                   "^TRANSFER\\s+(?:TO|FROM)\\s+CHK\\s+X+\\d+$",
-                  "^Online Transfer\\s+(?:from|to)\\s+CHK"
+                  "^Online Transfer\\s+(?:from|to)\\s+CHK",
+                  "^Online Transfer\\s+\\d+\\s+to\\s+Roja",
+                  "^JPMorgan Chase Ext Trnsfr\\s+\\d+"
               ]
           }
       }
