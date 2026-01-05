@@ -145,3 +145,10 @@ account_code,fullname,name,parent_name,parent_code,account_type,description,hidd
 15200,Assets:Savings Accounts:qapital-savings,qapital-savings,Savings Accounts,15000,ASSET,,0,0
 52200,Liabilities:Loans:mortgage-ncsb-3700,mortgage-ncsb-3700,Loans,52000,LIABILITY,,0,0
 46100,Income:Reimbursement,Reimbursement,Income,40000,INCOME,,0,0
+12400,Assets:Checking Accounts:checking-chase-business-9210,checking-chase-business-9210,Checking Accounts,12000,ASSET,,0,0
+13400,Assets:Investment Accounts:investment-schwab-savings-0903,investment-schwab-savings-0903,Investment Accounts,13000,ASSET,,0,0
+31150,Expenses:Home:Mortgage,Mortgage,Home,31100,EXPENSE,,0,0
+51100,Liabilities:Credit Cards:creditcard-chase-personal-0239,creditcard-chase-personal-0239,Credit Cards,51000,LIABILITY,,0,0
+51200,Liabilities:Credit Cards:creditcard-chase-personal-7030,creditcard-chase-personal-7030,Credit Cards,51000,LIABILITY,,0,0
+51300,Liabilities:Credit Cards:creditcard-citi-business-1275,creditcard-citi-business-1275,Credit Cards,51000,LIABILITY,,0,0
+51400,Liabilities:Credit Cards:creditcard-citi-personal-4217,creditcard-citi-personal-4217,Credit Cards,51000,LIABILITY,,0,0
