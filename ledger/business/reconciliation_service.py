@@ -44,6 +44,12 @@ class ReconciliationService:
         logger.debug(f"Found {len(transactions)} transactions in period")
 
         computed_change = self._compute_balance_change(transactions, statement.account_id)
+        
+        # For LIABILITY accounts (credit cards), QIF sign convention is inverted
+        # Positive amounts in QIF = payments received = balance DECREASES
+        if statement.account and statement.account.acct_type == 'LIABILITY':
+            computed_change = -computed_change
+        
         computed_end = statement.start_balance + computed_change
         discrepancy = computed_end - statement.end_balance
         matches = abs(discrepancy) < Decimal('0.01')
