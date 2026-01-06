@@ -5,7 +5,9 @@
       "Bash(rg:*)",
       "Bash(python:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(wc:*)"
     ],
     "deny": []
   }
