@@ -115,6 +115,9 @@ class Transaction(Base, UpdatedAtMixin):
         String(1), server_default='n', nullable=False, default='n'
     )  # n=not, m=matched
     memo = Column(String(1024), nullable=True)
+    transfer_reference = Column(String(32), nullable=True, index=True)
+    # Stores the transaction# from Chase checking transfers (e.g., "11104475445")
+    
     book = relationship("Book", back_populates="transactions")
     import_file = relationship("ImportFile", back_populates="transactions")
     splits = relationship("Split", back_populates="transaction", cascade="all, delete-orphan")

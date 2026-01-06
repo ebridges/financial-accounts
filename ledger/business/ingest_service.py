@@ -145,7 +145,24 @@ class IngestService:
                 candidates = self._ctx.transactions.query_unmatched(
                     start, end, list(accounts_to_query)
                 )
-                logger.debug(f"Found {len(candidates)} candidate transactions for matching")
+                logger.debug(f"Found {len(candidates)} candidate transactions from matchable accounts")
+                
+                # Also fetch candidates by transfer_reference for Chase checking transfers
+                # These are uniquely identifiable by their transaction# and should always match
+                transfer_refs = [
+                    t.transfer_reference for t in transactions 
+                    if t.transfer_reference is not None
+                ]
+                if transfer_refs:
+                    ref_candidates = self._ctx.transactions.find_by_transfer_references(
+                        transfer_refs
+                    )
+                    # Merge candidates, avoiding duplicates
+                    existing_ids = {c.id for c in candidates}
+                    for rc in ref_candidates:
+                        if rc.id not in existing_ids:
+                            candidates.append(rc)
+                    logger.debug(f"Added {len(ref_candidates)} candidates by transfer_reference, total={len(candidates)}")
                 
                 # Collect transactions to insert (excluding matched ones)
                 to_insert = []

@@ -201,6 +201,29 @@ class DAL:
         logger.debug(f"Found {len(results)} unmatched transactions")
         return results
 
+    def get_transactions_by_transfer_references(
+        self, book_id: int, transfer_references: list[str]
+    ) -> list[Transaction]:
+        """
+        Get all transactions matching any of the given transfer_references.
+        
+        Used to efficiently fetch candidates for batch matching during import.
+        """
+        if not transfer_references:
+            return []
+        logger.debug(f"Looking up transactions by {len(transfer_references)} transfer_references")
+        return (
+            self.session.query(Transaction)
+            .options(joinedload(Transaction.splits).joinedload(Split.account))
+            .filter(
+                and_(
+                    Transaction.book_id == book_id,
+                    Transaction.transfer_reference.in_(transfer_references),
+                )
+            )
+            .all()
+        )
+
     def delete_transaction(self, txn_id: str) -> bool:
         logger.debug(f"Deleting transaction id={txn_id}")
         splits = self.session.query(Split).filter_by(transaction_id=txn_id)

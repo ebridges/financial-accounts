@@ -6,6 +6,7 @@ from logging import getLogger
 
 from ledger.db.models import Transaction, Split, Account
 from ledger.util.normalize import normalize_payee
+from ledger.util.transfer import extract_transfer_reference
 
 logger = getLogger(__name__)
 
@@ -164,6 +165,11 @@ class Qif:
             transaction.transaction_date = data['transaction_date']
             transaction.transaction_description = data['transaction_description']
             transaction.payee_norm = data['payee_norm']
+            
+            # Extract transfer_reference from Chase checking transfer descriptions
+            transaction.transfer_reference = extract_transfer_reference(
+                data['transaction_description']
+            )
             
             transaction.splits = []
             for split_data in data['splits']:

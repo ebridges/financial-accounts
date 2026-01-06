@@ -162,6 +162,18 @@ class MatchingService:
         """
         logger.debug(f"is_match: comparing import '{txn_import.transaction_description}' vs candidate id={txn_candidate.id}")
         
+        # Fast path: if both have transfer_reference, match by reference only
+        # This handles Chase checking-to-checking transfers which have unique transaction#
+        import_ref = txn_import.transfer_reference
+        candidate_ref = txn_candidate.transfer_reference
+        
+        if import_ref and candidate_ref:
+            is_ref_match = import_ref == candidate_ref
+            logger.debug(f"is_match: transfer_reference comparison: import='{import_ref}' vs candidate='{candidate_ref}' -> {is_ref_match}")
+            return is_ref_match
+        
+        # Fall back to existing split/pattern matching for credit cards and other transfers
+        
         # 1. Check split equality (accounts + amounts must match exactly)
         if self.compare_splits(txn_import, txn_candidate) is None:
             logger.debug("is_match: splits do not match")
