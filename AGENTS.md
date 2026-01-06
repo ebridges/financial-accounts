@@ -2,7 +2,86 @@
 
 This file provides domain-specific guidance for AI agents working on this double-entry accounting system. It supplements [CLAUDE.md](CLAUDE.md) (which covers development commands and architecture) with domain knowledge and common pitfalls learned from development.
 
-## 1. Transaction Matching Rules
+## 1. Tiered Service Architecture
+
+The application uses a layered service architecture. **Services should use other services rather than bypassing to the data access layer directly.**
+
+### Architecture Layers
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       CLI Layer                              │
+│  ledger/cli.py - Entry point, argument parsing               │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│            High-Level Orchestration Services                 │
+│  IngestService, MatchingService, CategorizeService           │
+│  - Coordinate complex multi-step workflows                   │
+│  - Take BookContext, use mid-level services through it       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│              Mid-Level Business Services                     │
+│  AccountService, TransactionService, StatementService,       │
+│  ReconciliationService                                       │
+│  - Book-scoped operations                                    │
+│  - Receive DAL and Book, exposed via BookContext             │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│                  Data Access Layer (DAL)                     │
+│  ledger/db/data_access.py - Raw database CRUD operations     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### BookContext: The Service Coordinator
+
+[BookContext](ledger/business/book_context.py) is the central coordinator that:
+- Creates a shared database session
+- Initializes all book-scoped services with that session
+- Provides property accessors for services: `ctx.accounts`, `ctx.transactions`, `ctx.statements`, `ctx.reconciliation`
+- Handles commit/rollback on context exit
+
+```python
+with BookContext("personal", DB_URL) as ctx:
+    # Use services through the context
+    account = ctx.accounts.lookup_by_name("checking-chase-personal-1381")
+    ctx.transactions.enter_transaction(...)
+```
+
+### Service Composition Pattern
+
+**Correct**: High-level services use mid-level services via BookContext:
+
+```python
+class IngestService:
+    def __init__(self, ctx: BookContext):
+        self._ctx = ctx
+    
+    def ingest_qif(self, file_path: str):
+        # Use AccountService through context
+        account = self._ctx.accounts.lookup_by_name(account_name)
+        # Use MatchingService (another high-level service)
+        matching_svc = MatchingService(self._ctx)
+        matching_svc.find_and_mark_matches(...)
+```
+
+**Avoid**: Bypassing services to use DAL directly for operations that services provide:
+
+```python
+# DON'T do this - use ctx.accounts.lookup_by_name() instead
+account = ctx.dal.get_account_by_fullname_for_book(book_id, name)
+```
+
+### When DAL Access is Appropriate
+
+Direct DAL access (`ctx.dal`) is appropriate for:
+- Operations not covered by existing services (e.g., `get_import_file_by_scope`)
+- Bulk queries for reporting/analysis scripts
+- Migration scripts that need low-level database access
+
+## 2. Transaction Matching Rules
 
 Transfer transactions appear in both source and destination QIF files. Matching requires checking description patterns, date offsets, and split amounts.
 
@@ -40,7 +119,7 @@ The embedded transaction number (`11104475445` in this example) uniquely identif
 - **date_offset**: Number of days tolerance for date matching
 - **description_patterns**: Regex patterns that identify transfer transactions
 
-## 2. Common Reconciliation Issues
+## 3. Common Reconciliation Issues
 
 Based on [migration-scripts/reconciliation-analysis-report.txt](migration-scripts/reconciliation-analysis-report.txt):
 
@@ -56,7 +135,7 @@ Based on [migration-scripts/reconciliation-analysis-report.txt](migration-script
 
 Chase's QIF export includes transactions based on posting date vs. statement date, causing boundary transactions to appear in multiple exports. When a transaction date falls on a statement boundary (e.g., May 8 is both the end of Statement 1 and might appear in Statement 2's export), the transaction belongs only in the earlier statement's QIF file.
 
-## 3. Data Integrity Constraints
+## 4. Data Integrity Constraints
 
 - Every transaction must have exactly **2 splits** (debit + credit)
 - Splits must **sum to zero** (double-entry accounting)
@@ -66,7 +145,7 @@ Chase's QIF export includes transactions based on posting date vs. statement dat
 - Match status: `'n'` (not matched), `'m'` (matched)
 - Reconciliation states: `'n'` (not reconciled), `'c'` (cleared), `'r'` (reconciled)
 
-## 4. File Organization Conventions
+## 5. File Organization Conventions
 
 ### Directory Structure
 
@@ -93,7 +172,7 @@ test-files/
 - Separator between dates: `--` (double dash)
 - Example: `2017-02-09--2017-03-08-checking-chase-personal-1381.qif`
 
-## 5. RECONCILIATION-NOTES.md Format
+## 6. RECONCILIATION-NOTES.md Format
 
 Each year's `test-files/{year}/` directory contains a `RECONCILIATION-NOTES.md` documenting manual corrections made during reconciliation.
 
@@ -151,7 +230,7 @@ Transactions affected:
 - YYYY-MM-DD: Kept ID X, deleted ID Y (description...)
 ```
 
-## 6. Validation Workflow
+## 7. Validation Workflow
 
 Reference [validation/VALIDATION_TESTS.md](validation/VALIDATION_TESTS.md) for the complete testing hierarchy.
 
@@ -186,7 +265,7 @@ python comprehensive_matching_validation.py --reset --verbose  # Full
 python debug_matching_logic.py              # Debug (after real_world test)
 ```
 
-## 7. Migration Script Patterns
+## 8. Migration Script Patterns
 
 The migration scripts are for the management of the files in `test-files` so that the changes can be applied on the master files (stored elsewhere).
 
@@ -273,7 +352,7 @@ Transactions affected:
     return note
 ```
 
-## 8. QIF File Structure Reference
+## 9. QIF File Structure Reference
 
 QIF files contain account info and transactions:
 
