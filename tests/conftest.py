@@ -33,6 +33,7 @@ def mock_ctx(mock_dal, mock_book):
 @pytest.fixture
 def mock_fitz_doc():
     """Factory fixture for mocking fitz PDF documents."""
+
     def _make_doc(page_text: str):
         mock_page = MagicMock()
         mock_page.get_text.return_value = page_text
@@ -41,6 +42,7 @@ def mock_fitz_doc():
         mock_doc.__exit__ = MagicMock(return_value=False)
         mock_doc.__iter__ = MagicMock(return_value=iter([mock_page]))
         return mock_doc
+
     return _make_doc
 
 
@@ -48,6 +50,7 @@ def mock_fitz_doc():
 def sample_statement():
     """Sample AccountStatement mock for reconciliation tests."""
     from ledger.db.models import AccountStatement
+
     stmt = MagicMock(spec=AccountStatement)
     stmt.id = 1
     stmt.book_id = 1
@@ -64,6 +67,7 @@ def sample_statement():
 def sample_transactions():
     """Sample transactions that sum to +500 (matching sample_statement)."""
     from ledger.db.models import Transaction, Split
+
     txns = []
     for amount in [Decimal('300.00'), Decimal('200.00')]:
         split = MagicMock(spec=Split)

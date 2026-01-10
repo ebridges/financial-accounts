@@ -35,10 +35,10 @@ def test_export_account_hierarchy_as_json(db_url):
     # First, initialize database and create book
     with ManagementService().init_with_url(db_url) as management_service:
         management_service.reset_database()
-    
+
     with BookService().init_with_url(db_url) as book_service:
-        book = book_service.create_new_book("Test Book")
-    
+        book_service.create_new_book("Test Book")
+
     # Use BookContext for account operations
     with BookContext("Test Book", db_url) as ctx:
         root_account = ctx.accounts.add_account(
@@ -53,7 +53,7 @@ def test_export_account_hierarchy_as_json(db_url):
             placeholder=False,
         )
         print(f'Created root account: {root_account.id}')
-        
+
         child_account = ctx.accounts.add_account(
             parent_code=root_account.code,
             parent_name=root_account.name,

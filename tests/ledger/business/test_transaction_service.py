@@ -28,7 +28,7 @@ def test_enter_transaction(transaction_service, mock_dal):
         from_acct="Credit Account",
         amount="100.00",
     )
-    
+
     assert txn_id == 1
     mock_dal.create_transaction.assert_called_once()
     # Should create two splits (debit and credit)
@@ -55,7 +55,7 @@ def test_delete_transaction(transaction_service, mock_dal):
     mock_dal.delete_transaction.return_value = True
 
     result = transaction_service.delete(transaction_id=1)
-    
+
     assert result is True
     mock_dal.delete_transaction.assert_called_once_with(txn_id=1)
 
@@ -74,7 +74,7 @@ def test_get_all_transactions(transaction_service, mock_dal):
     mock_dal.list_transactions_for_book.return_value = mock_txns
 
     result = transaction_service.get_all()
-    
+
     assert len(result) == 2
     mock_dal.list_transactions_for_book.assert_called_once_with(book_id=1)
 
@@ -84,20 +84,20 @@ def test_mark_matched(transaction_service, mock_dal):
     mock_txn = MagicMock()
 
     transaction_service.mark_matched(mock_txn)
-    
+
     mock_dal.update_transaction_match_status.assert_called_once_with(mock_txn)
 
 
 def test_query_unmatched(transaction_service, mock_dal):
     """Test querying unmatched transactions."""
     from datetime import date
-    
+
     mock_dal.query_for_unmatched_transactions_in_range.return_value = []
     start = date(2024, 1, 1)
     end = date(2024, 1, 31)
 
     result = transaction_service.query_unmatched(start, end, ["Account1"])
-    
+
     assert result == []
     mock_dal.query_for_unmatched_transactions_in_range.assert_called_once_with(
         1, start, end, ["Account1"]
@@ -110,6 +110,6 @@ def test_insert_transaction(transaction_service, mock_dal):
     mock_dal.insert_transaction.return_value = mock_txn
 
     result = transaction_service.insert(mock_txn)
-    
+
     assert result == mock_txn
     mock_dal.insert_transaction.assert_called_once_with(mock_txn)

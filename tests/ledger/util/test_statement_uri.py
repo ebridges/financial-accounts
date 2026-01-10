@@ -1,4 +1,5 @@
 """Tests for AccountUri utility."""
+
 import pytest
 from datetime import date
 from pathlib import Path
@@ -21,14 +22,20 @@ class TestAccountUri:
         assert uri_pdf.path == uri_json.path
 
     def test_from_path_valid(self):
-        path = Path("2018/checking-chase-business-9210/2018-02-01--2018-02-28-checking-chase-business-9210")
+        path = Path(
+            "2018/checking-chase-business-9210/2018-02-01--2018-02-28-checking-chase-business-9210"
+        )
         uri = AccountUri.from_path(path)
         assert uri.year == 2018
         assert uri.account_slug == "checking-chase-business-9210"
 
     def test_from_components(self):
-        uri = AccountUri.from_components(year=2024, account_slug="checking-chase-personal",
-                                         from_date=date(2024, 1, 1), to_date=date(2024, 1, 31))
+        uri = AccountUri.from_components(
+            year=2024,
+            account_slug="checking-chase-personal",
+            from_date=date(2024, 1, 1),
+            to_date=date(2024, 1, 31),
+        )
         assert uri.year == 2024
         assert uri.account_slug == "checking-chase-personal"
 
@@ -52,4 +59,3 @@ class TestAccountUri:
     def test_str_representation(self):
         uri = AccountUri.from_string("2023/account/2023-01-01--2023-01-31-account")
         assert "AccountUri" in str(uri)
-
