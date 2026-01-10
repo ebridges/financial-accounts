@@ -17,6 +17,7 @@ flake8-pyproject = "^1.2.3"
 pytest = "^8.3.4"
 pytest-cov = "^6.0.0"
 gitpython = "^3.1.44"
+black = "^25.12.0"
 
 [tool.pytest.ini_options]
 addopts = [
@@ -33,6 +34,11 @@ markers = [
     "integration: Tests with real database and sample data",
     "validation: Comprehensive validation tests",
     "slow: Tests that take more than 10 seconds"
+]
+filterwarnings = [
+    # Ignore DeprecationWarnings from PyMuPDF/fitz SWIG bindings
+    "ignore:builtin type Swig.*:DeprecationWarning",
+    "ignore:builtin type swigvarlink.*:DeprecationWarning",
 ]
 
 [tool.coverage.run]
