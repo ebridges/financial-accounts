@@ -4,6 +4,7 @@ Fixtures for validation tests.
 Provides database setup, sample data paths, and common test utilities
 for integration and validation tests.
 """
+
 import os
 import pytest
 import tempfile
@@ -20,18 +21,12 @@ MATCHING_CONFIG = os.path.join(VALIDATION_DIR, 'matching-config.json')
 
 # Required accounts for validation tests
 REQUIRED_ACCOUNTS = {
-    "Assets:Checking Accounts:checking-chase-personal-1381": {
-        "type": "ASSET",
-        "code": "1381"
-    },
-    "Assets:Checking Accounts:checking-chase-personal-1605": {
-        "type": "ASSET",
-        "code": "1605"
-    },
+    "Assets:Checking Accounts:checking-chase-personal-1381": {"type": "ASSET", "code": "1381"},
+    "Assets:Checking Accounts:checking-chase-personal-1605": {"type": "ASSET", "code": "1605"},
     "Liabilities:Credit Cards:creditcard-chase-personal-6063": {
         "type": "LIABILITY",
-        "code": "6063"
-    }
+        "code": "6063",
+    },
 }
 
 
@@ -67,11 +62,11 @@ def initialized_db(validation_db_url, validation_book_name):
     # Initialize database schema
     with ManagementService().init_with_url(validation_db_url) as mgmt_service:
         mgmt_service.reset_database()
-    
+
     # Create book
     with BookService().init_with_url(validation_db_url) as book_service:
         book_service.create_new_book(validation_book_name)
-    
+
     return validation_db_url
 
 
@@ -93,9 +88,9 @@ def initialized_db_with_accounts(initialized_db, validation_book_name):
                 acct_type=details["type"],
                 description=f"Validation test account {details['code']}",
                 hidden=False,
-                placeholder=False
+                placeholder=False,
             )
-    
+
     return initialized_db
 
 
@@ -114,21 +109,13 @@ def matching_config():
 @pytest.fixture
 def sample_qif_files():
     """List of basic sample QIF files (small test data)."""
-    return [
-        "sample-1381.qif",
-        "sample-1605.qif",
-        "sample-6063.qif"
-    ]
+    return ["sample-1381.qif", "sample-1605.qif", "sample-6063.qif"]
 
 
 @pytest.fixture
 def comprehensive_qif_files():
     """List of comprehensive QIF files (large test data)."""
-    return [
-        "samples-1381.qif",
-        "samples-1605.qif",
-        "samples-6063.qif"
-    ]
+    return ["samples-1381.qif", "samples-1605.qif", "samples-6063.qif"]
 
 
 @pytest.fixture
@@ -139,4 +126,3 @@ def book_context(initialized_db_with_accounts, validation_book_name):
     """
     with BookContext(validation_book_name, initialized_db_with_accounts) as ctx:
         yield ctx
-

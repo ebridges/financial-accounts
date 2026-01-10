@@ -86,9 +86,7 @@ class MatchingService:
     def __init__(self, rules_path: str = MATCHING_RULES_PATH):
         self.rules = MatchingRules(rules_path)
 
-    def compute_candidate_date_range(
-        self, to_import: list[Transaction]
-    ) -> tuple[date, date]:
+    def compute_candidate_date_range(self, to_import: list[Transaction]) -> tuple[date, date]:
         """
         Calculate the date range (with buffer) to query potential candidate transactions.
         Caller should use this to fetch candidates efficiently.
@@ -98,7 +96,7 @@ class MatchingService:
 
         min_date = min(txn.transaction_date for txn in to_import)
         max_date = max(txn.transaction_date for txn in to_import)
-        
+
         buffer = timedelta(days=DEFAULT_DATE_OFFSET)
         return min_date - buffer, max_date + buffer
 
@@ -113,31 +111,37 @@ class MatchingService:
     ) -> Iterator[tuple[str, Transaction]]:
         """
         Generator that yields decisions for each imported transaction.
-        
+
         Yields tuples of:
         - ('match', existing_transaction)   → mark this existing tx as matched
         - ('import', new_transaction)       → insert this transaction as new
 
         Order of yields generally follows order of `to_import`.
         """
-        logger.debug(f"Matching {len(to_import)} imports against {len(candidates)} candidates for account '{import_for.full_name}'")
+        logger.debug(
+            f"Matching {len(to_import)} imports against {len(candidates)} candidates for account '{import_for.full_name}'"
+        )
         matchable_accounts = self.get_matchable_accounts(import_for)
         if not matchable_accounts:
-            logger.debug(f"No matchable accounts configured for '{import_for.full_name}', importing all")
+            logger.debug(
+                f"No matchable accounts configured for '{import_for.full_name}', importing all"
+            )
             for txn in to_import:
                 yield ('import', txn)
             return
-        
+
         logger.debug(f"Matchable accounts: {list(matchable_accounts)}")
         match_count = 0
         import_count = 0
-        
+
         for txn_import in to_import:
             matched = False
 
             for txn_candidate in candidates:
                 if self.is_match(import_for, txn_import, txn_candidate):
-                    logger.debug(f"MATCH: import '{txn_import.transaction_description}' -> candidate id={txn_candidate.id}")
+                    logger.debug(
+                        f"MATCH: import '{txn_import.transaction_description}' -> candidate id={txn_candidate.id}"
+                    )
                     yield ('match', txn_candidate)
                     matched = True
                     match_count += 1
@@ -146,22 +150,34 @@ class MatchingService:
             if not matched:
                 yield ('import', txn_import)
                 import_count += 1
-        
+
         logger.debug(f"Matching complete: {match_count} matched, {import_count} imported")
-    
-    
+
     def is_match(
-        self,
-        import_for: Account,
-        txn_import: Transaction,
-        txn_candidate: Transaction
+        self, import_for: Account, txn_import: Transaction, txn_candidate: Transaction
     ) -> bool:
         """
         Core matching logic between one imported transaction and one candidate.
         Returns True if they should be considered a match.
         """
-        logger.debug(f"is_match: comparing import '{txn_import.transaction_description}' vs candidate id={txn_candidate.id}")
-        
+        logger.debug(
+            f"is_match: comparing import '{txn_import.transaction_description}' vs candidate id={txn_candidate.id}"
+        )
+
+        # Fast path: if both have transfer_reference, match by reference only
+        # This handles Chase checking-to-checking transfers which have unique transaction#
+        import_ref = txn_import.transfer_reference
+        candidate_ref = txn_candidate.transfer_reference
+
+        if import_ref and candidate_ref:
+            is_ref_match = import_ref == candidate_ref
+            logger.debug(
+                f"is_match: transfer_reference comparison: import='{import_ref}' vs candidate='{candidate_ref}' -> {is_ref_match}"
+            )
+            return is_ref_match
+
+        # Fall back to existing split/pattern matching for credit cards and other transfers
+
         # 1. Check split equality (accounts + amounts must match exactly)
         if self.compare_splits(txn_import, txn_candidate) is None:
             logger.debug("is_match: splits do not match")
@@ -176,14 +192,16 @@ class MatchingService:
         # 3. Check IMPORT description against allowed patterns for this counterparty
         #    (patterns describe what the importing account would see, not the candidate)
         patterns = self.rules.matching_patterns(import_for, corresponding_account)
-        
+
         description = txn_import.transaction_description or ""
         description_matched = any(re.match(pattern, description) for pattern in patterns)
 
         if not description_matched:
-            logger.debug(f"is_match: import description '{description}' did not match any of {len(patterns)} patterns")
+            logger.debug(
+                f"is_match: import description '{description}' did not match any of {len(patterns)} patterns"
+            )
             return False
-        logger.debug(f"is_match: description matched")
+        logger.debug("is_match: description matched")
 
         # 4. Check date proximity
         date_offset = self.rules.matching_date_offset(import_for, corresponding_account)

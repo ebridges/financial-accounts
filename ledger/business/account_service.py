@@ -10,11 +10,11 @@ logger = getLogger(__name__)
 
 class AccountService:
     """Book-scoped service for account operations. Use via BookContext."""
-    
+
     def __init__(self, dal: DAL, book: Book):
         self._dal = dal
         self._book = book
-    
+
     def list_accounts(self):
         """List all accounts in this book."""
         return self._dal.list_accounts_for_book(self._book.id)
@@ -38,7 +38,9 @@ class AccountService:
                 self._book.id, parent_code, parent_name
             )
             if not parent_acct:
-                logger.error(f"Parent account '{parent_name}' (code={parent_code}) not found in book '{self._book.name}'")
+                logger.error(
+                    f"Parent account '{parent_name}' (code={parent_code}) not found in book '{self._book.name}'"
+                )
                 raise Exception(f"Parent account named '{parent_name}' not found.")
             parent_id = parent_acct.id
 

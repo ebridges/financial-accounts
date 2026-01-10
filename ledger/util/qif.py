@@ -6,6 +6,7 @@ from logging import getLogger
 
 from ledger.db.models import Transaction, Split, Account
 from ledger.util.normalize import normalize_payee
+from ledger.util.transfer import extract_transfer_reference
 
 logger = getLogger(__name__)
 
@@ -17,7 +18,7 @@ RecordBegin = 'C'
 TxnDate = 'D'
 TxnCheckNumber = 'N'
 TxnPayee = 'P'
-TxnPayeeNorm = 'B' # normalized payee, non-standard field
+TxnPayeeNorm = 'B'  # normalized payee, non-standard field
 TxnAmount = 'T'
 TxnCategory = 'L'
 RecordEnd = '^'
@@ -73,7 +74,9 @@ class Qif:
                 if in_account_section:
                     self.account_info[RecordEnd] = ''
                     in_account_section = False
-                    logger.debug(f"Parsed account section: {self.account_info.get(AcctName, 'unknown')}")
+                    logger.debug(
+                        f"Parsed account section: {self.account_info.get(AcctName, 'unknown')}"
+                    )
                 else:
                     current_transaction[RecordEnd] = ''
                     self.transactions.append(current_transaction)
@@ -87,7 +90,7 @@ class Qif:
                     current_transaction[line_type] = line_data
                     if line_type == TxnPayee:
                         current_transaction[TxnPayeeNorm] = normalize_payee(line_data)
-        
+
         logger.debug(f"Parsed {len(self.transactions)} transactions")
         return self
 
@@ -121,50 +124,47 @@ class Qif:
         for txn in self.transactions:
             txn_date = parse_qif_date(txn.get(TxnDate))
             txn_amount = Decimal(txn.get(TxnAmount).strip())
-            
+
             data = {
                 'book_id': book_id,
                 'transaction_date': txn_date,
                 'transaction_description': txn.get(TxnPayee),
                 'payee_norm': txn.get(TxnPayeeNorm),
                 'splits': [
-                    {
-                        'account_name': from_account,
-                        'amount': txn_amount
-                    },
-                    {
-                        'account_name': txn.get(TxnCategory),
-                        'amount': txn_amount * NEG_ONE
-                    }
-                ]
+                    {'account_name': from_account, 'amount': txn_amount},
+                    {'account_name': txn.get(TxnCategory), 'amount': txn_amount * NEG_ONE},
+                ],
             }
             transaction_data.append(data)
         return transaction_data
 
-    def as_transactions(
-        self, book_id: int, resolve_account: Callable[[str], Account]
-    ) -> list:
+    def as_transactions(self, book_id: int, resolve_account: Callable[[str], Account]) -> list:
         """
         Convert QIF data to Transaction objects.
-        
+
         Args:
             book_id: Book ID for the transactions
             resolve_account: Callback (account_name) -> Account
-        
+
         Returns:
             List of Transaction objects with resolved accounts
         """
         logger.debug(f"Converting {len(self.transactions)} QIF records to Transaction objects")
         transaction_data = self.as_transaction_data(book_id)
         transactions = []
-        
+
         for data in transaction_data:
             transaction = Transaction()
             transaction.book_id = data['book_id']
             transaction.transaction_date = data['transaction_date']
             transaction.transaction_description = data['transaction_description']
             transaction.payee_norm = data['payee_norm']
-            
+
+            # Extract transfer_reference from Chase checking transfer descriptions
+            transaction.transfer_reference = extract_transfer_reference(
+                data['transaction_description']
+            )
+
             transaction.splits = []
             for split_data in data['splits']:
                 split = Split()
@@ -180,8 +180,8 @@ class Qif:
                 split._account_cache = account
                 split.amount = split_data['amount']
                 transaction.splits.append(split)
-            
+
             transactions.append(transaction)
-        
+
         logger.debug(f"Created {len(transactions)} Transaction objects")
         return transactions

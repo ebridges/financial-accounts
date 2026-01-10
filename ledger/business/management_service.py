@@ -52,7 +52,6 @@ class ManagementService(BaseService):
         # Step 4: Convert the list of root nodes (which contain nested children) to JSON
         return json.dumps(root_nodes, indent=2)
 
-
     def list_account_hierarchy(self):
         # Step 1: Run a recursive CTE query to get each account, its parent, and depth
         recursive_cte_query = text(

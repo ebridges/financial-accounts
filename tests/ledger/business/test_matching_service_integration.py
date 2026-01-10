@@ -43,7 +43,7 @@ def setup_transactions() -> str:
     and would be targets for a match.
     The `row_id` column is for testing purposes to be able to link to a
     transaction that is later imported as being the match for test purposes.
-    
+
     With the corrected enter_transaction() logic:
     - from_acct (account column) = credit account (money leaves, gets -amount)
     - to_acct (corresponding_account column) = debit account (money arrives, gets +amount)
@@ -188,31 +188,29 @@ def services(config_file, test_accounts):
     # Create engine and session
     engine = create_engine(TEST_DB_URL, echo=False)
     SessionLocal = sessionmaker(bind=engine)
-    
+
     # Create all tables in the test database
     Base.metadata.create_all(engine)
-    
+
     # Create session and DAL
     session = SessionLocal()
     dal = DAL(session=session)
-    
+
     # Create a test Book and required Accounts
     book = dal.create_book(name="Test Book")
-    
+
     # Create accounts referenced in matching rules
     for name, code, acct_type in test_accounts:
-        dal.create_account(
-            book.id, code=code, name=name, full_name=name, acct_type=acct_type
-        )
-    
+        dal.create_account(book.id, code=code, name=name, full_name=name, acct_type=acct_type)
+
     session.commit()
-    
+
     # Create TransactionService with DAL and book
     ts = TransactionService(dal, book)
     ms = MatchingService(config_file)
-    
+
     yield ts, ms, book, dal
-    
+
     # Teardown: close session and drop all tables
     session.close()
     Base.metadata.drop_all(engine)
@@ -257,9 +255,7 @@ def transactions_to_import(services, setup_csv_file, import_csv_file):
 
             # Find Account objects by name via DAL
             acct = dal.get_account_by_fullname_for_book(book.id, row["account"])
-            corr_acct = dal.get_account_by_fullname_for_book(
-                book.id, row["corresponding_account"]
-            )
+            corr_acct = dal.get_account_by_fullname_for_book(book.id, row["corresponding_account"])
 
             amount = Decimal(row["amount"])
             d = Split(account_id=acct.id, amount=amount)
@@ -273,6 +269,7 @@ def transactions_to_import(services, setup_csv_file, import_csv_file):
             transactions_to_import.setdefault(acct, []).append(txn)
     return transactions_to_import
 
+
 @pytest.mark.filterwarnings("ignore::ResourceWarning")
 def test_import_transactions_matching_logic(
     services, transactions_to_import, transaction_match_mappings
@@ -283,13 +280,13 @@ def test_import_transactions_matching_logic(
     for import_account, txn_list in transactions_to_import.items():
         # Get matchable accounts and query candidates
         matchable_accounts = ms.get_matchable_accounts(import_account)
-        
+
         if matchable_accounts and txn_list:
             start, end = ms.compute_candidate_date_range(txn_list)
             candidates = ts.query_unmatched(start, end, list(matchable_accounts))
         else:
             candidates = []
-        
+
         # Process each transaction through match_transactions generator
         for action, txn in ms.match_transactions(import_account, txn_list, candidates):
             if action == 'match':

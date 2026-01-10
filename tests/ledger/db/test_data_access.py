@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from ledger.db.data_access import DAL
-from ledger.db.models import Base, Book, Account, Transaction, Split
+from ledger.db.models import Base, Account, Transaction
 
 
 @pytest.fixture
@@ -59,18 +59,14 @@ def test_create_account(dal, mock_session):
 
 
 def test_get_account(dal, mock_session):
-    mock_session.query().filter_by().one_or_none.return_value = Account(
-        id="1", name="Test Account"
-    )
+    mock_session.query().filter_by().one_or_none.return_value = Account(id="1", name="Test Account")
 
     account = dal.get_account("1")
     assert account.name == "Test Account"
 
 
 def test_list_accounts_for_book(dal, mock_session):
-    mock_session.query().filter_by().all.return_value = [
-        Account(id="1", name="Test Account")
-    ]
+    mock_session.query().filter_by().all.return_value = [Account(id="1", name="Test Account")]
 
     accounts = dal.list_accounts_for_book("1")
     assert len(accounts) == 1

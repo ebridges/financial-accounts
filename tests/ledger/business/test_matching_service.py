@@ -71,6 +71,8 @@ def mock_transaction():
         transaction.transaction_date = datetime.fromisoformat(date)
         transaction.transaction_description = description
         transaction.splits = splits
+        # Explicitly set transfer_reference to None to avoid early-return in is_match
+        transaction.transfer_reference = None
         return transaction
 
     return _mock_transaction
@@ -114,9 +116,7 @@ def matching_service(mock_matching_rules):
 
 
 @pytest.mark.filterwarnings("ignore::ResourceWarning")
-@patch(
-    "ledger.business.matching_service.MatchingService.compare_splits", return_value=True
-)
+@patch("ledger.business.matching_service.MatchingService.compare_splits", return_value=True)
 def test_is_match_success(
     mock_compare_splits, matching_service, mock_account, mock_transaction, mock_split
 ):
@@ -187,7 +187,10 @@ def test_is_match_fails_on_date_range(matching_service, mock_account, mock_trans
     assert result is False, "Expected False when date difference exceeds offset"
 
 
-def test_is_match_success_with_regex(matching_service, mock_account, mock_transaction, mock_split):
+@patch("ledger.business.matching_service.MatchingService.compare_splits", return_value=True)
+def test_is_match_success_with_regex(
+    mock_compare_splits, matching_service, mock_account, mock_transaction, mock_split
+):
     """Test when description matches via regex pattern."""
     import_for = mock_account(1)
     txn_import = mock_transaction(
@@ -197,24 +200,32 @@ def test_is_match_success_with_regex(matching_service, mock_account, mock_transa
         "2024-03-09", "Invoice 7890", [mock_split(1, 100), mock_split(2, -100)]
     )
 
+    # Set up corresponding_account to return mock_account(2)
+    txn_import.corresponding_account.return_value = mock_account(2)
+
     result = matching_service.is_match(import_for, txn_import, txn_candidate)
     assert result is True, "Expected True when description matches a regex pattern"
 
 
 # Parametrized compare_splits tests
-@pytest.mark.parametrize("imported_splits,candidate_splits,should_match,description", [
-    ([(1, 100), (2, -100)], [(1, 100), (2, -100)], True, "exact match"),
-    ([(1, 100), (2, -100)], [(2, -100), (1, 100)], True, "unordered match"),
-    ([(1, 100), (2, -100)], [(1, 100), (2, -50)], False, "amount mismatch"),
-    ([(1, 100), (2, -100)], [(3, 100), (2, -100)], False, "account mismatch"),
-    ([(1, 100), (2, -100)], [(1, 100)], False, "missing split"),
-    ([(1, 100), (2, -100)], [(1, 100), (2, -100), (3, 50)], False, "extra split"),
-    ([], [], True, "both empty"),
-    ([(1, 100), (2, -100)], [], False, "candidate empty"),
-    ([], [(1, 100), (2, -100)], False, "imported empty"),
-])
+@pytest.mark.parametrize(
+    "imported_splits,candidate_splits,should_match,description",
+    [
+        ([(1, 100), (2, -100)], [(1, 100), (2, -100)], True, "exact match"),
+        ([(1, 100), (2, -100)], [(2, -100), (1, 100)], True, "unordered match"),
+        ([(1, 100), (2, -100)], [(1, 100), (2, -50)], False, "amount mismatch"),
+        ([(1, 100), (2, -100)], [(3, 100), (2, -100)], False, "account mismatch"),
+        ([(1, 100), (2, -100)], [(1, 100)], False, "missing split"),
+        ([(1, 100), (2, -100)], [(1, 100), (2, -100), (3, 50)], False, "extra split"),
+        ([], [], True, "both empty"),
+        ([(1, 100), (2, -100)], [], False, "candidate empty"),
+        ([], [(1, 100), (2, -100)], False, "imported empty"),
+    ],
+)
 @pytest.mark.filterwarnings("ignore::ResourceWarning")
-def test_compare_splits(mock_transaction, mock_split, imported_splits, candidate_splits, should_match, description):
+def test_compare_splits(
+    mock_transaction, mock_split, imported_splits, candidate_splits, should_match, description
+):
     """Test compare_splits with various split configurations."""
     imported = mock_transaction(splits=[mock_split(*s) for s in imported_splits])
     candidate = mock_transaction(splits=[mock_split(*s) for s in candidate_splits])

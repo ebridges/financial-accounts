@@ -12,7 +12,7 @@ logger = getLogger(__name__)
 
 class TransactionService:
     """Book-scoped service for transaction operations. Use via BookContext."""
-    
+
     def __init__(self, dal: DAL, book: Book):
         self._dal = dal
         self._book = book
@@ -26,8 +26,13 @@ class TransactionService:
         return self._dal.insert_transaction(txn)
 
     def enter_transaction(
-        self, txn_date: str, txn_desc: str, to_acct: str, from_acct: str, 
-        amount: str, memo: str = None
+        self,
+        txn_date: str,
+        txn_desc: str,
+        to_acct: str,
+        from_acct: str,
+        amount: str,
+        memo: str = None,
     ):
         """Create a transaction with two splits (debit/credit). Returns transaction ID."""
         amt = Decimal(value=amount)
@@ -82,3 +87,27 @@ class TransactionService:
     def get_all(self) -> list[Transaction]:
         """Get all transactions in this book."""
         return self._dal.list_transactions_for_book(book_id=self._book.id)
+
+    def find_by_transfer_references(
+        self, transfer_references: list[str] | str
+    ) -> list[Transaction]:
+        """
+        Find transactions by one or more transfer_reference values.
+
+        Used to find existing Chase checking transfers that may appear
+        in multiple QIF files (one per account).
+
+        Args:
+            transfer_references: A single reference string or list of references
+
+        Returns:
+            List of matching transactions (empty if none found)
+        """
+        if not transfer_references:
+            return []
+
+        # Normalize to list
+        if isinstance(transfer_references, str):
+            transfer_references = [transfer_references]
+
+        return self._dal.get_transactions_by_transfer_references(self._book.id, transfer_references)

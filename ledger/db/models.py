@@ -40,6 +40,9 @@ class Book(Base, UpdatedAtMixin):
     accounts = relationship("Account", back_populates="book", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="book", cascade="all, delete-orphan")
     import_files = relationship("ImportFile", back_populates="book", cascade="all, delete-orphan")
+    account_statements = relationship(
+        "AccountStatement", back_populates="book", cascade="all, delete-orphan"
+    )
 
     def __str__(self):
         return self.name
@@ -101,7 +104,9 @@ class Transaction(Base, UpdatedAtMixin):
         Integer, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
     )
     import_file_id = Column(
-        Integer, ForeignKey('import_file.id', ondelete="SET NULL", onupdate="RESTRICT"), nullable=True
+        Integer,
+        ForeignKey('import_file.id', ondelete="SET NULL", onupdate="RESTRICT"),
+        nullable=True,
     )
     transaction_date = Column(Date, nullable=False)
     entry_date = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
@@ -112,6 +117,9 @@ class Transaction(Base, UpdatedAtMixin):
         String(1), server_default='n', nullable=False, default='n'
     )  # n=not, m=matched
     memo = Column(String(1024), nullable=True)
+    transfer_reference = Column(String(32), nullable=True, index=True)
+    # Stores the transaction# from Chase checking transfers (e.g., "11104475445")
+
     book = relationship("Book", back_populates="transactions")
     import_file = relationship("ImportFile", back_populates="transactions")
     splits = relationship("Split", back_populates="transaction", cascade="all, delete-orphan")
@@ -146,7 +154,9 @@ class Transaction(Base, UpdatedAtMixin):
                     f"Split {split.id} has no account loaded for transaction {self.id}"
                 )
             if acct.full_name != candidate.full_name:
-                return acct  # Return the account from the split that does not match the given account
+                return (
+                    acct  # Return the account from the split that does not match the given account
+                )
 
         raise CorrespondingSplitNotFoundError(
             f"No corresponding split found for account {candidate.id} in transaction {self.id}"
@@ -185,10 +195,11 @@ class Split(Base, UpdatedAtMixin):
 class ImportFile(Base, UpdatedAtMixin):
     """
     Tracks imported files for file-level idempotency.
-    
+
     Each import file is uniquely identified by (book_id, account_id, filename).
     Re-importing the same file (by hash) is a no-op.
     """
+
     __tablename__ = 'import_file'
     id = Column(Integer, autoincrement=True, primary_key=True)
     book_id = Column(
@@ -225,10 +236,11 @@ class ImportFile(Base, UpdatedAtMixin):
 class CategoryCache(Base, UpdatedAtMixin):
     """
     Cache for payee → category mappings to speed up categorization.
-    
+
     When a payee is successfully categorized, store the mapping here
     for fast lookup on subsequent imports.
     """
+
     __tablename__ = 'category_cache'
     payee_norm = Column(String(255), primary_key=True)  # normalized payee string
     account_id = Column(
@@ -241,6 +253,54 @@ class CategoryCache(Base, UpdatedAtMixin):
 
     def __str__(self):
         return f"CategoryCache({self.payee_norm} -> {self.account_id})"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class AccountStatement(Base, UpdatedAtMixin):
+    """
+    Tracks statement periods and reconciliation status for accounts.
+
+    Each statement is uniquely identified by (book_id, account_id, start_date, end_date).
+    Stores balances from PDF statements and computed balances from transactions.
+    """
+
+    __tablename__ = 'account_statement'
+    id = Column(Integer, autoincrement=True, primary_key=True)
+    book_id = Column(
+        Integer, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
+    account_id = Column(
+        Integer, ForeignKey('account.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
+    )
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    start_balance = Column(DECIMAL(20, 4), nullable=False)
+    end_balance = Column(DECIMAL(20, 4), nullable=False)
+    statement_path = Column(String(1024))  # path to PDF
+    reconcile_status = Column(
+        String(1), server_default='n', nullable=False, default='n'
+    )  # n=not reconciled, r=reconciled, d=discrepancy
+    computed_end_balance = Column(DECIMAL(20, 4))  # calculated from transactions
+    discrepancy = Column(DECIMAL(20, 4))  # null=not computed, 0=reconciled, other=mismatch
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("reconcile_status IN ('n','r','d')"),
+        UniqueConstraint(
+            'book_id', 'account_id', 'start_date', 'end_date', name='uq_account_statement_period'
+        ),
+    )
+
+    book = relationship("Book", back_populates="account_statements")
+    account = relationship("Account")
+
+    def __str__(self):
+        return (
+            f"AccountStatement({self.account.name if self.account else self.account_id}, "
+            f"{self.start_date} - {self.end_date}, status={self.reconcile_status})"
+        )
 
     def __repr__(self):
         return self.__str__()

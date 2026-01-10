@@ -8,6 +8,9 @@ from ledger.business.book_context import BookContext
 from ledger.business.management_service import ManagementService
 from ledger.business.book_service import BookService
 from ledger.business.ingest_service import IngestService, IngestResult
+from ledger.business.statement_service import ImportResult
+from ledger.business.reconciliation_service import display_reconciliation_result
+from ledger.util.statement_uri import AccountUri
 
 DEFAULT_DB_URL = "sqlite:///db/accounting-system.db"
 DEFAULT_BOOK = "personal"
@@ -120,6 +123,15 @@ def main():
     elif args.command == "list-imports":
         do_list_imports(args.db_url, args.book_name)
 
+    elif args.command == "import-statement":
+        do_import_statement(args.db_url, args.book_name, args.pdf_path)
+
+    elif args.command == "reconcile":
+        do_reconcile(args.db_url, args.book_name, args.statement_id, args.account_slug, args.all)
+
+    elif args.command == "list-statements":
+        do_list_statements(args.db_url, args.book_name, args.account_slug)
+
     return 0
 
 
@@ -230,6 +242,43 @@ def parse_arguments():
         "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
     )
 
+    # import-statement
+    sp_import_stmt = subparsers.add_parser(
+        "import-statement", help="Import a PDF statement and create AccountStatement record"
+    )
+    sp_import_stmt.add_argument(
+        "pdf_path",
+        help="Path to PDF statement file. Must follow convention: "
+        "YYYY/account-slug/YYYY-MM-DD--YYYY-MM-DD-account-slug.pdf",
+    )
+    sp_import_stmt.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
+
+    # reconcile
+    sp_reconcile = subparsers.add_parser(
+        "reconcile", help="Reconcile statement(s) against transactions"
+    )
+    sp_reconcile.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
+    sp_reconcile.add_argument(
+        "--statement-id", "-s", type=int, help="Specific statement ID to reconcile"
+    )
+    sp_reconcile.add_argument(
+        "--account-slug", "-a", help="Reconcile all statements for this account"
+    )
+    sp_reconcile.add_argument(
+        "--all", action="store_true", default=False, help="Include already-reconciled statements"
+    )
+
+    # list-statements
+    sp_list_stmts = subparsers.add_parser("list-statements", help="List account statements")
+    sp_list_stmts.add_argument(
+        "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
+    )
+    sp_list_stmts.add_argument("--account-slug", "-a", help="Filter by account slug")
+
     return parser.parse_args()
 
 
@@ -324,7 +373,7 @@ def do_ingest(db_url, file_path, book_name):
     # Verify file type
     _, ext = os.path.splitext(file_path)
     ext = ext.lower()
-    
+
     if ext != '.qif':
         print(f"Error: Unsupported file type '{ext}'. Use .qif")
         return 1
@@ -376,6 +425,107 @@ def do_list_imports(db_url, book_name):
                 print(f"    Coverage: {imp.coverage_start} to {imp.coverage_end}")
                 print(f"    Transactions: {imp.row_count}")
                 print(f"    Imported: {imp.created_at}")
+                print()
+
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
+    return 0
+
+
+def do_import_statement(db_url, book_name, pdf_path):
+    """Import a PDF statement."""
+    # Parse path into AccountUri
+    try:
+        uri = AccountUri.from_string(pdf_path)
+    except ValueError as e:
+        print(f"Error: Invalid path format. {e}")
+        print(
+            "Path must follow convention: YYYY/account-slug/YYYY-MM-DD--YYYY-MM-DD-account-slug.pdf"
+        )
+        return 1
+
+    with BookContext(book_name, db_url) as ctx:
+        try:
+            report = ctx.statements.import_statement(uri)
+
+            if report.result == ImportResult.IMPORTED:
+                print(f"✓ Imported statement: {report.message}")
+                print(f"  Statement ID: {report.statement_id}")
+            elif report.result == ImportResult.ALREADY_RECONCILED:
+                print(f"⊘ {report.message}")
+                print(f"  Statement ID: {report.statement_id}")
+            elif report.result == ImportResult.NEEDS_RECONCILIATION:
+                print(f"⚠ {report.message}")
+                print(f"  Statement ID: {report.statement_id}")
+                print("  Run 'reconcile' command to reconcile this statement.")
+
+        except Exception as e:
+            print(f"Error: {e}")
+            return 1
+
+    return 0
+
+
+def do_reconcile(db_url, book_name, statement_id, account_slug, all_periods):
+    """Reconcile statement(s)."""
+    with BookContext(book_name, db_url) as ctx:
+        try:
+            if statement_id:
+                # Reconcile specific statement
+                result = ctx.reconciliation.reconcile_statement(statement_id)
+                display_reconciliation_result(result)
+            elif account_slug:
+                # Reconcile all statements for account
+                results = ctx.reconciliation.reconcile_by_account(
+                    account_slug, all_periods=all_periods
+                )
+                if not results:
+                    print(f"No statements to reconcile for account '{account_slug}'.")
+                else:
+                    for result in results:
+                        display_reconciliation_result(result)
+            else:
+                print("Error: Specify either --statement-id or --account-slug")
+                return 1
+
+        except ValueError as e:
+            print(f"Error: {e}")
+            return 1
+
+    return 0
+
+
+def do_list_statements(db_url, book_name, account_slug):
+    """List account statements."""
+    with BookContext(book_name, db_url) as ctx:
+        try:
+            statements = ctx.statements.list_statements(account_slug)
+
+            if not statements:
+                filter_msg = f" for account '{account_slug}'" if account_slug else ""
+                print(f"No statements found{filter_msg} in book '{book_name}'.")
+                return 0
+
+            print(f"Statements in book '{book_name}':")
+            print("-" * 90)
+            for stmt in statements:
+                account_name = stmt.account.name if stmt.account else f"id={stmt.account_id}"
+                status_symbol = {
+                    'n': '○',  # not reconciled
+                    'r': '✓',  # reconciled
+                    'd': '✗',  # discrepancy
+                }.get(stmt.reconcile_status, '?')
+
+                print(f"  {status_symbol} ID: {stmt.id}")
+                print(f"    Account: {account_name}")
+                print(f"    Period: {stmt.start_date} to {stmt.end_date}")
+                print(f"    Balance: ${stmt.start_balance:,.2f} → ${stmt.end_balance:,.2f}")
+                if stmt.computed_end_balance is not None:
+                    print(f"    Computed: ${stmt.computed_end_balance:,.2f}")
+                if stmt.discrepancy is not None:
+                    print(f"    Discrepancy: ${stmt.discrepancy:,.2f}")
                 print()
 
         except ValueError as e:

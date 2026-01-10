@@ -7,4 +7,5 @@ htmlcov/
 .env
 dist/
 validation/*.db
-test-qif-files/
+test-files/
+.claude/settings.local.json

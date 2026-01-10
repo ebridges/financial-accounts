@@ -1,6 +1,5 @@
 # test_normalize.py
 """Tests for payee normalization utility."""
-import pytest
 
 from ledger.util.normalize import normalize_payee
 

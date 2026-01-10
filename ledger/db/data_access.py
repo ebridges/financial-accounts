@@ -5,7 +5,15 @@ from logging import getLogger
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_
 
-from ledger.db.models import Book, Account, Transaction, Split, ImportFile, CategoryCache
+from ledger.db.models import (
+    Book,
+    Account,
+    Transaction,
+    Split,
+    ImportFile,
+    CategoryCache,
+    AccountStatement,
+)
 
 logger = getLogger(__name__)
 
@@ -68,15 +76,9 @@ class DAL:
         return account
 
     def get_account(self, account_id: str) -> Account | None:
-        return (
-            self.session.query(Account)
-            .filter_by(id=account_id)
-            .one_or_none()
-        )
+        return self.session.query(Account).filter_by(id=account_id).one_or_none()
 
-    def get_account_by_fullname_for_book(
-        self, book_id: str, acct_fullname: str
-    ) -> Account | None:
+    def get_account_by_fullname_for_book(self, book_id: str, acct_fullname: str) -> Account | None:
         account = (
             self.session.query(Account)
             .filter_by(book_id=book_id, full_name=acct_fullname)
@@ -95,11 +97,7 @@ class DAL:
         return account
 
     def list_accounts_for_book(self, book_id: str) -> list[Account]:
-        return (
-            self.session.query(Account)
-            .filter_by(book_id=book_id)
-            .all()
-        )
+        return self.session.query(Account).filter_by(book_id=book_id).all()
 
     # --------------------------------------------------------------------------
     # Transactions
@@ -175,7 +173,9 @@ class DAL:
         accounts_to_match_for: list[str],
         reconciliation_status: str | None = None,
     ):
-        logger.debug(f"Querying unmatched transactions: {start_date} to {end_date}, accounts={accounts_to_match_for}")
+        logger.debug(
+            f"Querying unmatched transactions: {start_date} to {end_date}, accounts={accounts_to_match_for}"
+        )
         query = (
             self.session.query(Transaction)
             .join(Split)
@@ -198,6 +198,29 @@ class DAL:
         results = query.all()
         logger.debug(f"Found {len(results)} unmatched transactions")
         return results
+
+    def get_transactions_by_transfer_references(
+        self, book_id: int, transfer_references: list[str]
+    ) -> list[Transaction]:
+        """
+        Get all transactions matching any of the given transfer_references.
+
+        Used to efficiently fetch candidates for batch matching during import.
+        """
+        if not transfer_references:
+            return []
+        logger.debug(f"Looking up transactions by {len(transfer_references)} transfer_references")
+        return (
+            self.session.query(Transaction)
+            .options(joinedload(Transaction.splits).joinedload(Split.account))
+            .filter(
+                and_(
+                    Transaction.book_id == book_id,
+                    Transaction.transfer_reference.in_(transfer_references),
+                )
+            )
+            .all()
+        )
 
     def delete_transaction(self, txn_id: str) -> bool:
         logger.debug(f"Deleting transaction id={txn_id}")
@@ -327,3 +350,130 @@ class DAL:
             entry.hit_count += 1
             entry.last_seen_at = datetime.now()
             self.session.commit()
+
+    # --------------------------------------------------------------------------
+    # AccountStatement
+    # --------------------------------------------------------------------------
+    def create_account_statement(
+        self,
+        book_id: int,
+        account_id: int,
+        start_date,
+        end_date,
+        start_balance,
+        end_balance,
+        statement_path: str | None = None,
+    ) -> AccountStatement:
+        """Create a new account statement record."""
+        logger.debug(
+            f"Creating account statement for account_id={account_id}, "
+            f"period={start_date} to {end_date}"
+        )
+        statement = AccountStatement(
+            book_id=book_id,
+            account_id=account_id,
+            start_date=start_date,
+            end_date=end_date,
+            start_balance=start_balance,
+            end_balance=end_balance,
+            statement_path=statement_path,
+        )
+        self.session.add(statement)
+        self.session.commit()
+        logger.debug(f"Created account statement id={statement.id}")
+        return statement
+
+    def get_account_statement(self, statement_id: int) -> AccountStatement | None:
+        """Get an account statement by ID."""
+        return (
+            self.session.query(AccountStatement)
+            .options(joinedload(AccountStatement.account))
+            .filter_by(id=statement_id)
+            .one_or_none()
+        )
+
+    def get_account_statement_by_period(
+        self, book_id: int, account_id: int, start_date, end_date
+    ) -> AccountStatement | None:
+        """Get an account statement by its unique period (book, account, dates)."""
+        return (
+            self.session.query(AccountStatement)
+            .options(joinedload(AccountStatement.account))
+            .filter_by(
+                book_id=book_id, account_id=account_id, start_date=start_date, end_date=end_date
+            )
+            .one_or_none()
+        )
+
+    def list_account_statements_for_book(self, book_id: int) -> list[AccountStatement]:
+        """List all account statements for a book."""
+        return (
+            self.session.query(AccountStatement)
+            .options(joinedload(AccountStatement.account))
+            .filter_by(book_id=book_id)
+            .order_by(AccountStatement.account_id, AccountStatement.start_date.desc())
+            .all()
+        )
+
+    def list_account_statements_for_account(
+        self, book_id: int, account_id: int
+    ) -> list[AccountStatement]:
+        """List all account statements for a specific account."""
+        return (
+            self.session.query(AccountStatement)
+            .options(joinedload(AccountStatement.account))
+            .filter_by(book_id=book_id, account_id=account_id)
+            .order_by(AccountStatement.start_date.desc())
+            .all()
+        )
+
+    def update_account_statement_reconciliation(
+        self,
+        statement: AccountStatement,
+        computed_end_balance,
+        discrepancy,
+        reconcile_status: str,
+    ) -> None:
+        """Update the reconciliation fields on an account statement."""
+        logger.debug(
+            f"Updating reconciliation for statement id={statement.id}: "
+            f"computed={computed_end_balance}, discrepancy={discrepancy}, status={reconcile_status}"
+        )
+        try:
+            statement.computed_end_balance = computed_end_balance
+            statement.discrepancy = discrepancy
+            statement.reconcile_status = reconcile_status
+            self.session.commit()
+        except Exception as e:
+            logger.error(f"Failed to update statement reconciliation: {e}")
+            self.session.rollback()
+            raise e
+
+    def query_transactions_for_account_in_range(
+        self,
+        book_id: int,
+        account_id: int,
+        start_date,
+        end_date,
+    ) -> list[Transaction]:
+        """Query all transactions for an account within a date range."""
+        logger.debug(
+            f"Querying transactions for account_id={account_id}, "
+            f"period={start_date} to {end_date}"
+        )
+        results = (
+            self.session.query(Transaction)
+            .join(Split)
+            .filter(
+                and_(
+                    Transaction.book_id == book_id,
+                    Transaction.transaction_date >= start_date,
+                    Transaction.transaction_date <= end_date,
+                    Split.account_id == account_id,
+                )
+            )
+            .options(joinedload(Transaction.splits).joinedload(Split.account))
+            .all()
+        )
+        logger.debug(f"Found {len(results)} transactions for account in period")
+        return results

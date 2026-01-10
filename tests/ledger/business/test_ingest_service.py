@@ -3,7 +3,7 @@
 import pytest
 import tempfile
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from ledger.business.ingest_service import IngestService, IngestResult, IngestReport
 
@@ -63,7 +63,7 @@ class TestIngestReport:
             result=IngestResult.IMPORTED,
             import_file_id=1,
             transactions_imported=10,
-            message='Success'
+            message='Success',
         )
 
         assert report.result == IngestResult.IMPORTED
@@ -72,9 +72,7 @@ class TestIngestReport:
 
     def test_skipped_duplicate_report(self):
         report = IngestReport(
-            result=IngestResult.SKIPPED_DUPLICATE,
-            import_file_id=5,
-            message='Already imported'
+            result=IngestResult.SKIPPED_DUPLICATE, import_file_id=5, message='Already imported'
         )
 
         assert report.result == IngestResult.SKIPPED_DUPLICATE
@@ -82,9 +80,7 @@ class TestIngestReport:
 
     def test_hash_mismatch_report(self):
         report = IngestReport(
-            result=IngestResult.HASH_MISMATCH,
-            import_file_id=3,
-            message='Different hash'
+            result=IngestResult.HASH_MISMATCH, import_file_id=3, message='Different hash'
         )
 
         assert report.result == IngestResult.HASH_MISMATCH
@@ -111,7 +107,7 @@ LExpenses:Uncategorized
         """Same file (by hash) should be skipped."""
         # Setup default account lookup
         mock_ctx.accounts.lookup_by_name.return_value = MagicMock(id=1, full_name='Test:Account')
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write(qif_content)
             f.flush()
@@ -140,7 +136,7 @@ LExpenses:Uncategorized
         """Same filename but different hash should report mismatch."""
         # Setup default account lookup
         mock_ctx.accounts.lookup_by_name.return_value = MagicMock(id=1, full_name='Test:Account')
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.qif', delete=False) as f:
             f.write(qif_content)
             f.flush()
@@ -184,7 +180,7 @@ LExpenses:Uncategorized
                 elif name == 'Expenses:Uncategorized':
                     return MagicMock(id=2, full_name='Expenses:Uncategorized')
                 raise Exception(f"Account not found: {name}")
-            
+
             mock_ctx.accounts.lookup_by_name.side_effect = mock_lookup_by_name
 
             service = IngestService(mock_ctx)
