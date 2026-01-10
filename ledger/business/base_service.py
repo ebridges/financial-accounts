@@ -11,15 +11,15 @@ logger = getLogger(__name__)
 class BaseService:
     """
     Base class for all services providing database session management.
-    
+
     Supports two modes:
     1. Independent session: Service creates and manages its own session
     2. Shared session: Service uses an externally-provided session (for coordinated operations)
-    
+
     Usage (independent):
         with TransactionService().init_with_url(DB_URL) as txn_svc:
             txn_svc.enter_transaction(...)
-    
+
     Usage (shared session):
         engine = create_engine(DB_URL)
         Session = sessionmaker(bind=engine)
@@ -33,7 +33,7 @@ class BaseService:
         finally:
             session.close()
     """
-    
+
     def __init__(self, session=None):
         self._external_session = session is not None
         self.session = session
@@ -60,7 +60,7 @@ class BaseService:
     def __exit__(self, exc_type, exc_value, traceback):
         """
         Exit context manager.
-        
+
         If using external session: does nothing (caller manages session lifecycle)
         If using own session: commits/rollbacks and closes session
         """
@@ -68,20 +68,22 @@ class BaseService:
         if self._external_session:
             logger.debug("External session, skipping cleanup")
             return False
-        
+
         logger.debug("Exiting BaseService context")
         try:
             if exc_type:
                 # Rollback on any exception
                 if self.session:
                     self.session.rollback()
-                logger.error(f"Exception during service operation: {exc_type.__name__}: {exc_value}")
+                logger.error(
+                    f"Exception during service operation: {exc_type.__name__}: {exc_value}"
+                )
             else:
                 # Commit successful operations
                 if self.session:
                     logger.debug("Committing session")
                     self.session.commit()
-            
+
             # Always close the session
             if self.data_access:
                 logger.debug("Closing data access")
@@ -97,5 +99,5 @@ class BaseService:
             self.session = None
             self.data_access = None
             self.engine = None
-            
+
         return False  # Allow exception propagation

@@ -1,4 +1,5 @@
 """Service for reconciling account statements against transaction sums."""
+
 from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
@@ -35,34 +36,45 @@ class ReconciliationService:
             raise ValueError(f"Statement with id={statement_id} not found")
 
         account_name = statement.account.name if statement.account else statement.account_id
-        logger.info(f"Reconciling statement id={statement_id}: {account_name} ({statement.start_date} to {statement.end_date})")
+        logger.info(
+            f"Reconciling statement id={statement_id}: {account_name} ({statement.start_date} to {statement.end_date})"
+        )
 
         transactions = self._ctx.dal.query_transactions_for_account_in_range(
-            book_id=self._ctx.book.id, account_id=statement.account_id,
-            start_date=statement.start_date, end_date=statement.end_date,
+            book_id=self._ctx.book.id,
+            account_id=statement.account_id,
+            start_date=statement.start_date,
+            end_date=statement.end_date,
         )
         logger.debug(f"Found {len(transactions)} transactions in period")
 
         computed_change = self._compute_balance_change(transactions, statement.account_id)
-        
+
         # For LIABILITY accounts (credit cards), QIF sign convention is inverted
         # Positive amounts in QIF = payments received = balance DECREASES
         if statement.account and statement.account.acct_type == 'LIABILITY':
             computed_change = -computed_change
-        
+
         computed_end = statement.start_balance + computed_change
         discrepancy = computed_end - statement.end_balance
         matches = abs(discrepancy) < Decimal('0.01')
 
         self._ctx.dal.update_account_statement_reconciliation(
-            statement=statement, computed_end_balance=computed_end,
-            discrepancy=discrepancy, reconcile_status='r' if matches else 'd',
+            statement=statement,
+            computed_end_balance=computed_end,
+            discrepancy=discrepancy,
+            reconcile_status='r' if matches else 'd',
         )
 
-        logger.info(f"Reconciliation: {'MATCHED' if matches else 'DISCREPANCY'} (computed={computed_end}, expected={statement.end_balance})")
+        logger.info(
+            f"Reconciliation: {'MATCHED' if matches else 'DISCREPANCY'} (computed={computed_end}, expected={statement.end_balance})"
+        )
         return ReconciliationResult(
-            matches=matches, computed_end_balance=computed_end,
-            discrepancy=discrepancy, transaction_count=len(transactions), statement=statement,
+            matches=matches,
+            computed_end_balance=computed_end,
+            discrepancy=discrepancy,
+            transaction_count=len(transactions),
+            statement=statement,
         )
 
     def _compute_balance_change(self, transactions: list[Transaction], account_id: int) -> Decimal:
@@ -74,13 +86,17 @@ class ReconciliationService:
                     total += split.amount
         return total
 
-    def reconcile_by_account(self, account_slug: str, all_periods: bool = False) -> list[ReconciliationResult]:
+    def reconcile_by_account(
+        self, account_slug: str, all_periods: bool = False
+    ) -> list[ReconciliationResult]:
         """Reconcile statements for an account. If all_periods=False, only unreconciled."""
         account = self._lookup_account(account_slug)
         if not account:
             raise ValueError(f"Account '{account_slug}' not found")
 
-        statements = self._ctx.dal.list_account_statements_for_account(self._ctx.book.id, account.id)
+        statements = self._ctx.dal.list_account_statements_for_account(
+            self._ctx.book.id, account.id
+        )
         results = []
         for stmt in statements:
             if not all_periods and stmt.discrepancy == Decimal('0'):
@@ -103,6 +119,7 @@ def display_reconciliation_result(result: ReconciliationResult) -> None:
     print(f"Period: {stmt.start_date} to {stmt.end_date}")
     print(f"Transactions: {result.transaction_count}")
     print(f"Statement start: ${stmt.start_balance:,.2f}  end: ${stmt.end_balance:,.2f}")
-    print(f"Computed end:    ${result.computed_end_balance:,.2f}  Discrepancy: ${result.discrepancy:,.2f}")
+    print(
+        f"Computed end:    ${result.computed_end_balance:,.2f}  Discrepancy: ${result.discrepancy:,.2f}"
+    )
     print(f"Status: {'RECONCILED' if result.matches else 'DISCREPANCY'}")
-

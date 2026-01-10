@@ -249,7 +249,7 @@ def parse_arguments():
     sp_import_stmt.add_argument(
         "pdf_path",
         help="Path to PDF statement file. Must follow convention: "
-             "YYYY/account-slug/YYYY-MM-DD--YYYY-MM-DD-account-slug.pdf"
+        "YYYY/account-slug/YYYY-MM-DD--YYYY-MM-DD-account-slug.pdf",
     )
     sp_import_stmt.add_argument(
         "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
@@ -269,20 +269,15 @@ def parse_arguments():
         "--account-slug", "-a", help="Reconcile all statements for this account"
     )
     sp_reconcile.add_argument(
-        "--all", action="store_true", default=False,
-        help="Include already-reconciled statements"
+        "--all", action="store_true", default=False, help="Include already-reconciled statements"
     )
 
     # list-statements
-    sp_list_stmts = subparsers.add_parser(
-        "list-statements", help="List account statements"
-    )
+    sp_list_stmts = subparsers.add_parser("list-statements", help="List account statements")
     sp_list_stmts.add_argument(
         "--book-name", "-b", default=DEFAULT_BOOK, help=f"Book name (default: '{DEFAULT_BOOK}')"
     )
-    sp_list_stmts.add_argument(
-        "--account-slug", "-a", help="Filter by account slug"
-    )
+    sp_list_stmts.add_argument("--account-slug", "-a", help="Filter by account slug")
 
     return parser.parse_args()
 
@@ -378,7 +373,7 @@ def do_ingest(db_url, file_path, book_name):
     # Verify file type
     _, ext = os.path.splitext(file_path)
     ext = ext.lower()
-    
+
     if ext != '.qif':
         print(f"Error: Unsupported file type '{ext}'. Use .qif")
         return 1
@@ -446,9 +441,11 @@ def do_import_statement(db_url, book_name, pdf_path):
         uri = AccountUri.from_string(pdf_path)
     except ValueError as e:
         print(f"Error: Invalid path format. {e}")
-        print("Path must follow convention: YYYY/account-slug/YYYY-MM-DD--YYYY-MM-DD-account-slug.pdf")
+        print(
+            "Path must follow convention: YYYY/account-slug/YYYY-MM-DD--YYYY-MM-DD-account-slug.pdf"
+        )
         return 1
-    
+
     with BookContext(book_name, db_url) as ctx:
         try:
             report = ctx.statements.import_statement(uri)

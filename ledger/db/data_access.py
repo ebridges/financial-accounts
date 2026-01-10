@@ -6,7 +6,13 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import and_
 
 from ledger.db.models import (
-    Book, Account, Transaction, Split, ImportFile, CategoryCache, AccountStatement
+    Book,
+    Account,
+    Transaction,
+    Split,
+    ImportFile,
+    CategoryCache,
+    AccountStatement,
 )
 
 logger = getLogger(__name__)
@@ -70,15 +76,9 @@ class DAL:
         return account
 
     def get_account(self, account_id: str) -> Account | None:
-        return (
-            self.session.query(Account)
-            .filter_by(id=account_id)
-            .one_or_none()
-        )
+        return self.session.query(Account).filter_by(id=account_id).one_or_none()
 
-    def get_account_by_fullname_for_book(
-        self, book_id: str, acct_fullname: str
-    ) -> Account | None:
+    def get_account_by_fullname_for_book(self, book_id: str, acct_fullname: str) -> Account | None:
         account = (
             self.session.query(Account)
             .filter_by(book_id=book_id, full_name=acct_fullname)
@@ -97,11 +97,7 @@ class DAL:
         return account
 
     def list_accounts_for_book(self, book_id: str) -> list[Account]:
-        return (
-            self.session.query(Account)
-            .filter_by(book_id=book_id)
-            .all()
-        )
+        return self.session.query(Account).filter_by(book_id=book_id).all()
 
     # --------------------------------------------------------------------------
     # Transactions
@@ -177,7 +173,9 @@ class DAL:
         accounts_to_match_for: list[str],
         reconciliation_status: str | None = None,
     ):
-        logger.debug(f"Querying unmatched transactions: {start_date} to {end_date}, accounts={accounts_to_match_for}")
+        logger.debug(
+            f"Querying unmatched transactions: {start_date} to {end_date}, accounts={accounts_to_match_for}"
+        )
         query = (
             self.session.query(Transaction)
             .join(Split)
@@ -206,7 +204,7 @@ class DAL:
     ) -> list[Transaction]:
         """
         Get all transactions matching any of the given transfer_references.
-        
+
         Used to efficiently fetch candidates for batch matching during import.
         """
         if not transfer_references:
@@ -402,10 +400,7 @@ class DAL:
             self.session.query(AccountStatement)
             .options(joinedload(AccountStatement.account))
             .filter_by(
-                book_id=book_id,
-                account_id=account_id,
-                start_date=start_date,
-                end_date=end_date
+                book_id=book_id, account_id=account_id, start_date=start_date, end_date=end_date
             )
             .one_or_none()
         )

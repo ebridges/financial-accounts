@@ -24,6 +24,7 @@ from ledger.db.models import ImportFile
 
 class IngestResult(Enum):
     """Result of an ingest operation."""
+
     IMPORTED = "imported"
     SKIPPED_DUPLICATE = "skipped"
     HASH_MISMATCH = "mismatch"
@@ -32,6 +33,7 @@ class IngestResult(Enum):
 @dataclass
 class IngestReport:
     """Report from an ingest operation."""
+
     result: IngestResult
     import_file_id: int | None = None
     transactions_imported: int = 0
@@ -42,7 +44,7 @@ class IngestReport:
 
 class IngestService:
     """QIF ingestion with idempotency, categorization, and optional matching."""
-    
+
     def __init__(
         self,
         ctx: BookContext,
@@ -58,11 +60,11 @@ class IngestService:
         filename = os.path.basename(file_path)
         logger.info(f"Starting ingestion of '{filename}'")
         logger.debug(f"Full path: {file_path}")
-        
+
         file_hash = self._compute_file_hash(file_path)
         logger.debug(f"File hash: {file_hash[:16]}...")
         book = self._ctx.book
-        
+
         # Parse QIF
         logger.debug("Parsing QIF file")
         qif = Qif().init_from_qif_file(file_path)
@@ -71,7 +73,7 @@ class IngestService:
             logger.error(f"QIF file '{filename}' missing account information")
             raise ValueError("QIF file does not contain account information")
         logger.debug(f"QIF account: '{account_name}', {len(qif.transactions)} transactions")
-        
+
         # Look up account
         try:
             account = self._ctx.accounts.lookup_by_name(account_name)
@@ -79,7 +81,7 @@ class IngestService:
         except Exception:
             logger.error(f"Account '{account_name}' not found in book '{book.name}'")
             raise ValueError(f"Account '{account_name}' not found in book '{book.name}'")
-        
+
         # Idempotency check
         logger.debug("Checking for existing import")
         existing = self._ctx.dal.get_import_file_by_scope(book.id, account.id, filename)
@@ -89,15 +91,15 @@ class IngestService:
                 return IngestReport(
                     result=IngestResult.SKIPPED_DUPLICATE,
                     import_file_id=existing.id,
-                    message=f"File '{filename}' already imported"
+                    message=f"File '{filename}' already imported",
                 )
             logger.warning(f"File '{filename}' exists with different hash (id={existing.id})")
             return IngestReport(
                 result=IngestResult.HASH_MISMATCH,
                 import_file_id=existing.id,
-                message=f"File '{filename}' exists with different content"
+                message=f"File '{filename}' exists with different content",
             )
-        
+
         # Categorize transactions where L field is missing
         logger.debug("Categorizing transactions without L field")
         categorize_svc = CategorizeService(ctx=self._ctx, rules_path=self.category_rules_path)
@@ -116,10 +118,12 @@ class IngestService:
                     # Default to Uncategorized when no category can be determined
                     Qif.set_category(txn, UNCATEGORIZED_ACCOUNT)
                     uncategorized_count += 1
-        
+
         if categorized_count > 0 or uncategorized_count > 0:
-            logger.debug(f"Categorization: {categorized_count} auto-categorized, {uncategorized_count} defaulted to Uncategorized")
-        
+            logger.debug(
+                f"Categorization: {categorized_count} auto-categorized, {uncategorized_count} defaulted to Uncategorized"
+            )
+
         # Convert to Transaction objects
         def resolve_account(name):
             try:
@@ -127,31 +131,34 @@ class IngestService:
             except Exception:
                 logger.warning(f"Could not resolve account '{name}'")
                 return None
-        
+
         logger.debug("Converting QIF to Transaction objects")
         transactions = qif.as_transactions(book.id, resolve_account)
-        
+
         # Match and insert
         stats = {'imported': 0, 'matched': 0, 'categorized': categorized_count}
-        
+
         if self.matching_rules and os.path.exists(self.matching_rules):
             logger.debug("Matching enabled - checking for transfer matches")
             matching_svc = MatchingService(self.matching_rules)
             accounts_to_query = matching_svc.get_matchable_accounts(account)
-            
+
             if accounts_to_query:
                 start, end = matching_svc.compute_candidate_date_range(transactions)
-                logger.debug(f"Querying candidates from {start} to {end} in {len(accounts_to_query)} accounts")
+                logger.debug(
+                    f"Querying candidates from {start} to {end} in {len(accounts_to_query)} accounts"
+                )
                 candidates = self._ctx.transactions.query_unmatched(
                     start, end, list(accounts_to_query)
                 )
-                logger.debug(f"Found {len(candidates)} candidate transactions from matchable accounts")
-                
+                logger.debug(
+                    f"Found {len(candidates)} candidate transactions from matchable accounts"
+                )
+
                 # Also fetch candidates by transfer_reference for Chase checking transfers
                 # These are uniquely identifiable by their transaction# and should always match
                 transfer_refs = [
-                    t.transfer_reference for t in transactions 
-                    if t.transfer_reference is not None
+                    t.transfer_reference for t in transactions if t.transfer_reference is not None
                 ]
                 if transfer_refs:
                     ref_candidates = self._ctx.transactions.find_by_transfer_references(
@@ -162,8 +169,10 @@ class IngestService:
                     for rc in ref_candidates:
                         if rc.id not in existing_ids:
                             candidates.append(rc)
-                    logger.debug(f"Added {len(ref_candidates)} candidates by transfer_reference, total={len(candidates)}")
-                
+                    logger.debug(
+                        f"Added {len(ref_candidates)} candidates by transfer_reference, total={len(candidates)}"
+                    )
+
                 # Collect transactions to insert (excluding matched ones)
                 to_insert = []
                 for action, txn in matching_svc.match_transactions(
@@ -174,7 +183,7 @@ class IngestService:
                         stats['matched'] += 1
                     else:
                         to_insert.append(txn)
-                
+
                 # Batch insert all at once
                 if to_insert:
                     self._ctx.transactions.insert_bulk(to_insert)
@@ -187,7 +196,7 @@ class IngestService:
             logger.debug("Matching disabled, inserting all transactions")
             self._ctx.transactions.insert_bulk(transactions)
             stats['imported'] = len(transactions)
-        
+
         # Record import
         dates = [t.transaction_date for t in transactions]
         import_file = self._ctx.dal.create_import_file(
@@ -201,26 +210,28 @@ class IngestService:
             coverage_end=max(dates) if dates else None,
             row_count=len(transactions),
         )
-        
-        logger.info(f"Imported '{filename}': {stats['imported']} transactions, {stats['matched']} matched, {stats['categorized']} categorized")
-        
+
+        logger.info(
+            f"Imported '{filename}': {stats['imported']} transactions, {stats['matched']} matched, {stats['categorized']} categorized"
+        )
+
         return IngestReport(
             result=IngestResult.IMPORTED,
             import_file_id=import_file.id,
             transactions_imported=stats['imported'],
             transactions_matched=stats['matched'],
             transactions_categorized=stats['categorized'],
-            message=f"Imported {stats['imported']}, matched {stats['matched']}, categorized {stats['categorized']}"
+            message=f"Imported {stats['imported']}, matched {stats['matched']}, categorized {stats['categorized']}",
         )
-    
+
     def list_imports(self) -> list[ImportFile]:
         """List all import files for this book."""
         return self._ctx.dal.list_import_files_for_book(self._ctx.book.id)
-    
+
     def get_import(self, import_file_id: int) -> ImportFile | None:
         """Get an import file by ID."""
         return self._ctx.dal.get_import_file(import_file_id)
-    
+
     @staticmethod
     def _compute_file_hash(file_path: str) -> str:
         """Compute SHA-256 hash of a file."""

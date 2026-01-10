@@ -1,4 +1,5 @@
 """PDF statement parser for extracting dates and balances from bank statements."""
+
 from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, date
@@ -89,12 +90,18 @@ class StatementPdfParser:
         start_date, end_date = self._extract_dates(text, patterns, pdf_path)
 
         if patterns.get('has_account_specific_balances'):
-            start_balance, end_balance = self._extract_chase_checking_balances(text, account_slug, pdf_path)
+            start_balance, end_balance = self._extract_chase_checking_balances(
+                text, account_slug, pdf_path
+            )
         else:
             start_balance, end_balance = self._extract_balances(text, patterns, pdf_path)
 
-        logger.info(f"Parsed: {account_slug} {start_date} to {end_date}, ${start_balance} to ${end_balance}")
-        return StatementData(account_slug, start_date, end_date, start_balance, end_balance, str(pdf_path))
+        logger.info(
+            f"Parsed: {account_slug} {start_date} to {end_date}, ${start_balance} to ${end_balance}"
+        )
+        return StatementData(
+            account_slug, start_date, end_date, start_balance, end_balance, str(pdf_path)
+        )
 
     def _extract_text(self, pdf_path: Path) -> str:
         try:
@@ -108,12 +115,16 @@ class StatementPdfParser:
         if not match:
             raise StatementParseError(f"Could not find date pattern in {pdf_path}")
         try:
-            return (datetime.strptime(match.group(1), patterns['date_format']).date(),
-                    datetime.strptime(match.group(2), patterns['date_format']).date())
+            return (
+                datetime.strptime(match.group(1), patterns['date_format']).date(),
+                datetime.strptime(match.group(2), patterns['date_format']).date(),
+            )
         except ValueError as e:
             raise StatementParseError(f"Failed to parse dates: {e}")
 
-    def _extract_balances(self, text: str, patterns: dict, pdf_path: Path) -> tuple[Decimal, Decimal]:
+    def _extract_balances(
+        self, text: str, patterns: dict, pdf_path: Path
+    ) -> tuple[Decimal, Decimal]:
         start_match = re.search(patterns['start_bal'], text)
         end_match = re.search(patterns['end_bal'], text)
         if not start_match:
@@ -121,14 +132,18 @@ class StatementPdfParser:
         if not end_match:
             raise StatementParseError(f"Could not find end balance in {pdf_path}")
         try:
-            return (self._parse_amount(start_match.group(1)),
-                    self._parse_amount(end_match.group(1)))
+            return (
+                self._parse_amount(start_match.group(1)),
+                self._parse_amount(end_match.group(1)),
+            )
         except Exception as e:
             raise StatementParseError(f"Failed to parse balance amounts: {e}")
 
-    def _extract_chase_checking_balances(self, text: str, account_slug: str, pdf_path: Path) -> tuple[Decimal, Decimal]:
+    def _extract_chase_checking_balances(
+        self, text: str, account_slug: str, pdf_path: Path
+    ) -> tuple[Decimal, Decimal]:
         """Extract account-specific balances from Chase checking consolidated statements.
-        
+
         Chase checking PDFs contain a Consolidated Balance Summary with separate
         entries for each account (e.g., 1381, 1605). Format is:
         Chase Checking
@@ -141,17 +156,17 @@ class StatementPdfParser:
         if len(parts) < 4 or not parts[-1].isdigit():
             raise StatementParseError(f"Cannot extract account number from slug: {account_slug}")
         acct_num_suffix = parts[-1]
-        
+
         # Find the account entry in Consolidated Balance Summary
         # Pattern: account number followed by two balance amounts on separate lines
         pattern = rf'0+\d*{acct_num_suffix}\s*\n\s*\$?([\d,]+\.\d{{2}})\s*\n\s*\$?([\d,]+\.\d{{2}})'
         match = re.search(pattern, text)
-        
+
         if not match:
             raise StatementParseError(
                 f"Could not find balances for account {acct_num_suffix} in {pdf_path}"
             )
-        
+
         try:
             start_balance = self._parse_amount(match.group(1))
             end_balance = self._parse_amount(match.group(2))

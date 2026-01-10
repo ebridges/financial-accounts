@@ -104,7 +104,9 @@ class Transaction(Base, UpdatedAtMixin):
         Integer, ForeignKey('book.id', ondelete="RESTRICT", onupdate="RESTRICT"), nullable=False
     )
     import_file_id = Column(
-        Integer, ForeignKey('import_file.id', ondelete="SET NULL", onupdate="RESTRICT"), nullable=True
+        Integer,
+        ForeignKey('import_file.id', ondelete="SET NULL", onupdate="RESTRICT"),
+        nullable=True,
     )
     transaction_date = Column(Date, nullable=False)
     entry_date = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
@@ -117,7 +119,7 @@ class Transaction(Base, UpdatedAtMixin):
     memo = Column(String(1024), nullable=True)
     transfer_reference = Column(String(32), nullable=True, index=True)
     # Stores the transaction# from Chase checking transfers (e.g., "11104475445")
-    
+
     book = relationship("Book", back_populates="transactions")
     import_file = relationship("ImportFile", back_populates="transactions")
     splits = relationship("Split", back_populates="transaction", cascade="all, delete-orphan")
@@ -152,7 +154,9 @@ class Transaction(Base, UpdatedAtMixin):
                     f"Split {split.id} has no account loaded for transaction {self.id}"
                 )
             if acct.full_name != candidate.full_name:
-                return acct  # Return the account from the split that does not match the given account
+                return (
+                    acct  # Return the account from the split that does not match the given account
+                )
 
         raise CorrespondingSplitNotFoundError(
             f"No corresponding split found for account {candidate.id} in transaction {self.id}"
@@ -191,10 +195,11 @@ class Split(Base, UpdatedAtMixin):
 class ImportFile(Base, UpdatedAtMixin):
     """
     Tracks imported files for file-level idempotency.
-    
+
     Each import file is uniquely identified by (book_id, account_id, filename).
     Re-importing the same file (by hash) is a no-op.
     """
+
     __tablename__ = 'import_file'
     id = Column(Integer, autoincrement=True, primary_key=True)
     book_id = Column(
@@ -231,10 +236,11 @@ class ImportFile(Base, UpdatedAtMixin):
 class CategoryCache(Base, UpdatedAtMixin):
     """
     Cache for payee → category mappings to speed up categorization.
-    
+
     When a payee is successfully categorized, store the mapping here
     for fast lookup on subsequent imports.
     """
+
     __tablename__ = 'category_cache'
     payee_norm = Column(String(255), primary_key=True)  # normalized payee string
     account_id = Column(
@@ -255,10 +261,11 @@ class CategoryCache(Base, UpdatedAtMixin):
 class AccountStatement(Base, UpdatedAtMixin):
     """
     Tracks statement periods and reconciliation status for accounts.
-    
+
     Each statement is uniquely identified by (book_id, account_id, start_date, end_date).
     Stores balances from PDF statements and computed balances from transactions.
     """
+
     __tablename__ = 'account_statement'
     id = Column(Integer, autoincrement=True, primary_key=True)
     book_id = Column(
@@ -282,8 +289,7 @@ class AccountStatement(Base, UpdatedAtMixin):
     __table_args__ = (
         CheckConstraint("reconcile_status IN ('n','r','d')"),
         UniqueConstraint(
-            'book_id', 'account_id', 'start_date', 'end_date',
-            name='uq_account_statement_period'
+            'book_id', 'account_id', 'start_date', 'end_date', name='uq_account_statement_period'
         ),
     )
 

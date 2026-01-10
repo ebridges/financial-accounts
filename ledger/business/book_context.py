@@ -25,7 +25,7 @@ logger = getLogger(__name__)
 
 class BookContext:
     """Coordinator for book-scoped services with shared session and auto commit/rollback."""
-    
+
     def __init__(self, book_name: str, db_url: str):
         self.book_name = book_name
         self.db_url = db_url
@@ -38,60 +38,60 @@ class BookContext:
         self._transactions = None
         self._statements = None
         self._reconciliation = None
-    
+
     def __enter__(self):
         logger.debug(f"Entering BookContext for book '{self.book_name}'")
         self._session = self._session_factory()
         self._dal = DAL(session=self._session)
-        
+
         self._book = self._dal.get_book_by_name(self.book_name)
         if not self._book:
             logger.error(f"Book '{self.book_name}' not found")
             self._session.close()
             raise ValueError(f"Book '{self.book_name}' not found")
-        
+
         logger.debug(f"Resolved book '{self.book_name}' to id={self._book.id}")
         self._accounts = AccountService(self._dal, self._book)
         self._transactions = TransactionService(self._dal, self._book)
         self._statements = StatementService(self)
         self._reconciliation = ReconciliationService(self)
         logger.debug("BookContext services initialized")
-        
+
         return self
-    
+
     def _require_entered(self, attr):
         value = getattr(self, f'_{attr}')
         if value is None:
             raise RuntimeError("BookContext not entered - use 'with' statement")
         return value
-    
+
     @property
     def book(self) -> Book:
         return self._require_entered('book')
-    
+
     @property
     def accounts(self) -> 'AccountService':
         return self._require_entered('accounts')
-    
+
     @property
     def transactions(self) -> 'TransactionService':
         return self._require_entered('transactions')
-    
+
     @property
     def dal(self) -> DAL:
         """Get DAL for operations not covered by services (e.g., import files, cache)."""
         return self._require_entered('dal')
-    
+
     @property
     def statements(self) -> 'StatementService':
         """Get the statement service for importing and managing account statements."""
         return self._require_entered('statements')
-    
+
     @property
     def reconciliation(self) -> 'ReconciliationService':
         """Get the reconciliation service for verifying statement balances."""
         return self._require_entered('reconciliation')
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         logger.debug(f"Exiting BookContext for book '{self.book_name}'")
         try:

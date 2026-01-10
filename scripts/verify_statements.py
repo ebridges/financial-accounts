@@ -81,7 +81,9 @@ def find_pdf_files(test_files_dir: Path) -> list[Path]:
     return sorted(test_files_dir.rglob("*.pdf"))
 
 
-def process_pdf(ctx: BookContext, pdf_path: Path, supported_prefixes: set[str]) -> VerificationResult:
+def process_pdf(
+    ctx: BookContext, pdf_path: Path, supported_prefixes: set[str]
+) -> VerificationResult:
     """Process a single PDF file through parsing, import, and reconciliation."""
     result = VerificationResult(file_path=str(pdf_path), status=ResultStatus.SKIPPED)
 
@@ -95,15 +97,21 @@ def process_pdf(ctx: BookContext, pdf_path: Path, supported_prefixes: set[str]) 
 
     if not is_supported_account(uri.account_slug, supported_prefixes):
         result.status = ResultStatus.SKIPPED
-        result.error_message = f"No parser pattern for account type"
+        result.error_message = "No parser pattern for account type"
         return result
 
     try:
         import_report = ctx.statements.import_statement(uri)
-        result.start_date = str(import_report.statement.start_date) if import_report.statement else ""
+        result.start_date = (
+            str(import_report.statement.start_date) if import_report.statement else ""
+        )
         result.end_date = str(import_report.statement.end_date) if import_report.statement else ""
-        result.start_balance = str(import_report.statement.start_balance) if import_report.statement else ""
-        result.end_balance = str(import_report.statement.end_balance) if import_report.statement else ""
+        result.start_balance = (
+            str(import_report.statement.start_balance) if import_report.statement else ""
+        )
+        result.end_balance = (
+            str(import_report.statement.end_balance) if import_report.statement else ""
+        )
     except StatementParseError as e:
         result.status = ResultStatus.PARSE_ERROR
         result.error_message = str(e)
@@ -202,7 +210,9 @@ def print_summary(report: VerificationReport):
         for r in report.results:
             if r["status"] == ResultStatus.DISCREPANCY:
                 print(f"  {r['file_path']}")
-                print(f"    Expected: {r['end_balance']}, Computed: {r['computed_end_balance']}, Diff: {r['discrepancy']}")
+                print(
+                    f"    Expected: {r['end_balance']}, Computed: {r['computed_end_balance']}, Diff: {r['discrepancy']}"
+                )
         print()
 
     if report.parse_error > 0:
@@ -231,18 +241,23 @@ def ensure_tables_exist(db_url: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Verify statement parsing and reconciliation")
-    parser.add_argument("--test-files-dir", type=Path, default=Path("test-files"),
-                        help="Directory containing test PDF files")
-    parser.add_argument("--book-name", "-b", default="personal",
-                        help="Book name in database")
-    parser.add_argument("--db-url", default="sqlite:///db/accounting-system.db",
-                        help="Database URL")
-    parser.add_argument("--output", "-o", type=Path,
-                        help="Output JSON file for detailed results")
-    parser.add_argument("--year", type=int,
-                        help="Only process files from this year (for testing)")
-    parser.add_argument("--create-tables", action="store_true",
-                        help="Create any missing database tables before running")
+    parser.add_argument(
+        "--test-files-dir",
+        type=Path,
+        default=Path("test-files"),
+        help="Directory containing test PDF files",
+    )
+    parser.add_argument("--book-name", "-b", default="personal", help="Book name in database")
+    parser.add_argument(
+        "--db-url", default="sqlite:///db/accounting-system.db", help="Database URL"
+    )
+    parser.add_argument("--output", "-o", type=Path, help="Output JSON file for detailed results")
+    parser.add_argument("--year", type=int, help="Only process files from this year (for testing)")
+    parser.add_argument(
+        "--create-tables",
+        action="store_true",
+        help="Create any missing database tables before running",
+    )
 
     args = parser.parse_args()
 
@@ -275,4 +290,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

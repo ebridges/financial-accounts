@@ -1,4 +1,5 @@
 """Service for importing and managing account statements."""
+
 from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
@@ -42,7 +43,7 @@ class StatementService:
         """Import a statement from a PDF file. Returns IMPORTED, ALREADY_RECONCILED, or NEEDS_RECONCILIATION."""
         account_slug = uri.account_slug
         pdf_path = uri.pdf()
-        
+
         logger.info(f"Importing statement: {pdf_path} for account '{account_slug}'")
 
         try:
@@ -61,12 +62,12 @@ class StatementService:
             start_date=data.start_date,
             end_date=data.end_date,
         )
-        
+
         if existing:
             return self._handle_existing_statement(existing, data)
         else:
             return self._create_new_statement(account.id, data)
-    
+
     def _lookup_account(self, account_slug: str):
         """Look up an account by its slug (name)."""
         for account in self._ctx.accounts.list_accounts():
@@ -74,18 +75,24 @@ class StatementService:
                 return account
         return None
 
-    def _handle_existing_statement(self, existing: AccountStatement, data: StatementData) -> ImportReport:
+    def _handle_existing_statement(
+        self, existing: AccountStatement, data: StatementData
+    ) -> ImportReport:
         logger.debug(f"Found existing statement id={existing.id}")
         if existing.discrepancy is not None and existing.discrepancy == Decimal('0'):
             logger.info(f"Statement already reconciled: id={existing.id}")
             return ImportReport(
-                result=ImportResult.ALREADY_RECONCILED, statement_id=existing.id,
-                statement=existing, message=f"Statement for {data.start_date} to {data.end_date} already reconciled"
+                result=ImportResult.ALREADY_RECONCILED,
+                statement_id=existing.id,
+                statement=existing,
+                message=f"Statement for {data.start_date} to {data.end_date} already reconciled",
             )
         logger.info(f"Statement needs reconciliation: id={existing.id}")
         return ImportReport(
-            result=ImportResult.NEEDS_RECONCILIATION, statement_id=existing.id,
-            statement=existing, message=f"Statement for {data.start_date} to {data.end_date} needs reconciliation"
+            result=ImportResult.NEEDS_RECONCILIATION,
+            statement_id=existing.id,
+            statement=existing,
+            message=f"Statement for {data.start_date} to {data.end_date} needs reconciliation",
         )
 
     def _create_new_statement(self, account_id: int, data: StatementData) -> ImportReport:
@@ -99,11 +106,13 @@ class StatementService:
             end_balance=data.end_balance,
             statement_path=data.pdf_path,
         )
-        
+
         logger.info(f"Created statement id={statement.id}")
         return ImportReport(
-            result=ImportResult.IMPORTED, statement_id=statement.id, statement=statement,
-            message=f"Imported statement for {data.start_date} to {data.end_date}, balance: {data.start_balance} to {data.end_balance}"
+            result=ImportResult.IMPORTED,
+            statement_id=statement.id,
+            statement=statement,
+            message=f"Imported statement for {data.start_date} to {data.end_date}, balance: {data.start_balance} to {data.end_balance}",
         )
 
     def get_statement(self, statement_id: int) -> AccountStatement | None:
@@ -117,4 +126,3 @@ class StatementService:
                 return []
             return self._ctx.dal.list_account_statements_for_account(self._ctx.book.id, account.id)
         return self._ctx.dal.list_account_statements_for_book(self._ctx.book.id)
-
