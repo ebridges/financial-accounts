@@ -232,38 +232,25 @@ Transactions affected:
 
 ## 7. Validation Workflow
 
-Reference [validation/VALIDATION_TESTS.md](validation/VALIDATION_TESTS.md) for the complete testing hierarchy.
+> **Note**: The validation scripts described in [validation/VALIDATION_TESTS.md](validation/VALIDATION_TESTS.md) are planned but not yet implemented. The documentation serves as a specification for future development.
 
-### Test Progression (in order of complexity)
+### Current Testing
 
-1. **Basic validation** - `validate_sample_data.py`
-   - Core import and matching functionality
-   - Use after changes to core import logic
-   - Runtime: ~30 seconds
-
-2. **Real-world scenarios** - `real_world_matching_test.py`
-   - Tests manual entry → bank import workflow
-   - Use for typical user workflow verification
-   - Runtime: ~2 minutes
-
-3. **Comprehensive testing** - `comprehensive_matching_validation.py`
-   - 1,783 real transactions across 8.9 years
-   - Use for absolute confidence in matching logic
-   - Runtime: ~5 minutes
-
-4. **Debugging** - `debug_matching_logic.py`
-   - Step-by-step analysis of matching rule evaluation
-   - Use when matching isn't working as expected
-
-### Running Validation
+Use the standard pytest suite for testing:
 
 ```bash
-cd validation
-python validate_sample_data.py --reset      # Basic
-python real_world_matching_test.py --reset  # Real-world
-python comprehensive_matching_validation.py --reset --verbose  # Full
-python debug_matching_logic.py              # Debug (after real_world test)
+poetry run pytest                           # Run all tests
+poetry run pytest --cov=ledger              # With coverage
+poetry run pytest tests/business/           # Specific module
 ```
+
+### Validation Data
+
+The `validation/` directory contains:
+- `data-samples/` - Sample QIF files for testing
+- `matching-config.json` - Test matching rules configuration
+- `matching-patterns.md` - Pattern documentation
+- `*.db` - Test databases (auto-generated)
 
 ## 8. Migration Script Patterns
 
@@ -387,4 +374,144 @@ The `L` line indicates the contra account:
 - `LExpenses:Groceries` - Expense category
 - `LAssets:Checking Accounts:checking-chase-personal-1605` - Transfer to another account
 - `LIncome:Salary` - Income category
+
+## 10. Root-Level Scripts and Files
+
+The project root contains various scripts. This section clarifies which are production-ready versus development artifacts.
+
+### Production Scripts (Keep and Use)
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `release.py` | Version management, git tagging, releases | `python release.py release 1.0.0` |
+| `import-accounts.py` | Import accounts from CSV with full CLI support | `python import-accounts.py --csv_file accounts.csv` |
+| `batch-import-qif.py` | Batch QIF import with auto-account creation | `python batch-import-qif.py --list-file qif-list.txt` |
+| `scripts/reconcile-all.py` | Complete reconciliation orchestrator | `poetry run python scripts/reconcile-all.py` |
+
+### Key Data Files (Keep)
+
+| File | Purpose |
+|------|---------|
+| `account-list.csv` | Master account list (154 accounts) for import |
+| `etc/matching-rules.json` | Transaction matching rule configuration |
+| `etc/category-payee-lookup.json` | Category/payee cache for auto-categorization |
+
+### Development/One-Off Scripts (Do Not Use)
+
+These scripts were created during development and are superseded by production scripts or contain hardcoded values:
+
+| Script | Issue | Use Instead |
+|--------|-------|-------------|
+| `import-accounts-batch.py` | Simpler duplicate of `import-accounts.py` | `import-accounts.py` |
+| `ingest-all-qif.py` | Subset of `batch-import-qif.py` | `batch-import-qif.py` |
+| `reconcile-all-statements.py` | Superseded | `scripts/reconcile-all.py` |
+| `analyze-discrepancy.py` | Hardcoded statement IDs (16, 27) | Write new analysis script |
+| `process-statements.py` | Incomplete, hardcoded patterns | N/A |
+| `setup.sh` | Demo with outdated paths | CLI commands in CLAUDE.md |
+| `fix-citi-business-local.sh` | One-time data migration (already run) | N/A |
+
+### Temporary Data Files (Should Be Cleaned Up)
+
+These files are generated artifacts from development/debugging and should not be committed:
+
+| Pattern | Description |
+|---------|-------------|
+| `verify_*.json` | Verification output files (10+ files) |
+| `current_discrepancies.json` | Reconciliation run output |
+| `discrepancy_analysis_*.json` | Analysis artifacts |
+| `filenames.txt`, `qif-list.txt`, `qif-test-list.txt` | Intermediate file lists |
+| `RECONCILIATION-STATUS.md` | Point-in-time status document |
+| `Untitled` | Scratch notes (ASCII diagram) |
+| `category-payee-lookup.json` (root) | Duplicate of `etc/category-payee-lookup.json` |
+
+### Orphaned Code (Should Be Removed)
+
+| File | Issue |
+|------|-------|
+| `models.py` | `AccountStatementUri` class duplicates `ledger/util/statement_uri.py:AccountUri` |
+
+## 11. Recommended Cleanup
+
+When cleaning up the project root, follow these steps:
+
+### Step 1: Remove Temporary JSON Files
+
+```bash
+rm -f verify_*.json current_discrepancies.json discrepancy_analysis_*.json
+```
+
+### Step 2: Remove Intermediate File Lists
+
+```bash
+rm -f filenames.txt qif-list.txt qif-test-list.txt
+```
+
+### Step 3: Remove One-Off Scripts
+
+```bash
+rm -f import-accounts-batch.py ingest-all-qif.py reconcile-all-statements.py
+rm -f analyze-discrepancy.py process-statements.py setup.sh fix-citi-business-local.sh
+```
+
+### Step 4: Remove Orphaned/Scratch Files
+
+```bash
+rm -f models.py Untitled RECONCILIATION-STATUS.md
+rm -f category-payee-lookup.json  # Root duplicate; keep etc/category-payee-lookup.json
+```
+
+### Step 5: Update .gitignore
+
+Add patterns to prevent re-accumulation:
+
+```gitignore
+# Generated verification/analysis files
+verify_*.json
+*_discrepancies.json
+discrepancy_analysis_*.json
+
+# Intermediate file lists
+filenames.txt
+qif-list.txt
+qif-test-list.txt
+
+# Status documents (generate fresh each time)
+RECONCILIATION-STATUS.md
+```
+
+## 12. Workflow Quick Reference
+
+### Fresh Database Setup
+
+```bash
+# 1. Initialize database and book
+poetry run accounts-cli init-db --confirm
+poetry run accounts-cli init-book -b personal
+
+# 2. Import accounts
+python import-accounts.py --csv_file account-list.csv
+
+# 3. Import QIF files (create list file first)
+find test-files -name "*.qif" > qif-list.txt
+python batch-import-qif.py --list-file qif-list.txt
+
+# 4. Run reconciliation
+poetry run python scripts/reconcile-all.py --start-year 2017
+```
+
+### Common Operations
+
+```bash
+# List accounts
+poetry run accounts-cli list-accounts -b personal
+
+# Book a transaction
+poetry run accounts-cli book-transaction -b personal \
+    -D 2024-01-15 -T "Grocery shopping" \
+    -x "Expenses:Groceries" -y "Assets:Checking" -a 150.00
+
+# Run tests
+poetry run pytest
+poetry run pytest --cov=ledger --cov-report=term
+```
 
